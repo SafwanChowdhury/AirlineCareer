@@ -2,22 +2,22 @@ import { NextResponse } from 'next/server';
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { pilots } from "@/lib/schema";
+import { UpdatePilotRequest, Pilot } from "@/lib/types";
 import { z } from "zod";
 
 const pilotUpdateSchema = z.object({
-  name: z.string(),
-  homeBase: z.string(),
-  currentLocation: z.string(),
+  name: z.string().optional(),
+  homeBase: z.string().optional(),
+  currentLocation: z.string().optional(),
   preferredAirline: z.string().optional(),
 });
 
 export async function GET(
   request: Request,
   context: { params: { id: string } }
-) {
+): Promise<NextResponse<Pilot | { error: string }>> {
   try {
-    const { id } = await Promise.resolve(context.params);
-    const pilotId = parseInt(id, 10);
+    const pilotId = parseInt(context.params.id, 10);
     
     if (isNaN(pilotId)) {
       return NextResponse.json(
@@ -52,12 +52,11 @@ export async function GET(
 export async function PUT(
   request: Request,
   context: { params: { id: string } }
-) {
+): Promise<NextResponse<Pilot | { error: string, details?: z.ZodError['errors'] }>> {
   try {
-    const { id } = await Promise.resolve(context.params);
-    const pilotId = parseInt(id, 10);
+    const pilotId = parseInt(context.params.id, 10);
     const body = await request.json();
-    const validatedData = pilotUpdateSchema.parse(body);
+    const validatedData = pilotUpdateSchema.parse(body) as UpdatePilotRequest;
 
     const [updatedPilot] = await db
       .update(pilots)
@@ -76,7 +75,7 @@ export async function PUT(
     }
 
     return NextResponse.json(updatedPilot);
-  } catch (err: unknown) {
+  } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid input data", details: err.errors },
@@ -95,10 +94,9 @@ export async function PUT(
 export async function DELETE(
   request: Request,
   context: { params: { id: string } }
-) {
+): Promise<NextResponse<{ success: boolean } | { error: string }>> {
   try {
-    const { id } = await Promise.resolve(context.params);
-    const pilotId = parseInt(id, 10);
+    const pilotId = parseInt(context.params.id, 10);
 
     const [deletedPilot] = await db
       .delete(pilots)
@@ -113,7 +111,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: unknown) {
+  } catch (err) {
     console.error("Error deleting pilot:", err);
     return NextResponse.json(
       { error: "Failed to delete pilot" },

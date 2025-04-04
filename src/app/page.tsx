@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { AirlineSelect } from "@/components/airline-select";
+import { AirlineSelect } from "@/components/career/AirlineSelect";
 import { AirportSelect } from "@/components/airport-select";
 import { CountrySelect } from "@/components/country-select";
 import { DurationSlider } from "@/components/duration-slider";

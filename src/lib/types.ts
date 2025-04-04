@@ -1,41 +1,119 @@
 import { InferModel } from "drizzle-orm";
-import { airports, schedules, pilots } from "./schema";
+import { 
+  pilots, 
+  schedules, 
+  routeDetails, 
+  scheduledFlights, 
+  flightHistory,
+  airports 
+} from "./schema";
 
-export type Airport = InferModel<typeof airports>;
-export type Schedule = InferModel<typeof schedules>;
+// Base types from schema
 export type Pilot = InferModel<typeof pilots>;
+export type Schedule = InferModel<typeof schedules>;
+export type RouteDetail = InferModel<typeof routeDetails>;
+export type ScheduledFlight = InferModel<typeof scheduledFlights>;
+export type FlightHistory = InferModel<typeof flightHistory>;
+export type Airport = InferModel<typeof airports>;
 
-export type NewSchedule = Omit<Schedule, "id">;
+// Extended types for API responses
+export interface PilotWithStats extends Pilot {
+  totalFlights?: number;
+  totalHours?: number;
+}
+
+export interface ScheduleWithFlights extends Schedule {
+  flights: ScheduledFlightWithRoute[];
+}
+
+export interface ScheduledFlightWithRoute extends ScheduledFlight {
+  route: RouteDetail;
+  scheduleName?: string;
+}
+
+export interface FlightHistoryWithRoute extends FlightHistory {
+  route: RouteDetail;
+}
+
+// API request types
+export interface CreatePilotRequest {
+  name: string;
+  homeBase: string;
+  currentLocation: string;
+  preferredAirline?: string;
+}
+
+export interface UpdatePilotRequest {
+  name?: string;
+  homeBase?: string;
+  currentLocation?: string;
+  preferredAirline?: string;
+}
+
+export interface CreateScheduleRequest {
+  pilotId: number;
+  name: string;
+  startLocation: string;
+  endLocation: string;
+  durationDays: number;
+  haulPreferences?: string;
+}
+
+export interface AddFlightToScheduleRequest {
+  scheduleId: number;
+  routeId: number;
+  sequenceOrder: number;
+  departureTime: string;
+  arrivalTime: string;
+}
+
+// Component prop types
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export interface AirlineSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+export interface AirportSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  excludeAirports?: string[];
+}
+
+// Context types
+export interface PilotContextType {
+  currentPilot: Pilot | null;
+  setCurrentPilot: (pilot: Pilot | null) => void;
+  loading: boolean;
+  error: string | null;
+}
+
+export interface CareerContextType {
+  pilot: Pilot | null;
+  schedule: Schedule | null;
+  setPilot: (pilot: Pilot | null) => void;
+  setSchedule: (schedule: Schedule | null) => void;
+  loading: boolean;
+  error: string | null;
+}
+
+// Utility types
+export type NewSchedule = Omit<Schedule, "id" | "createdAt" | "updatedAt">;
 export type NewPilot = Omit<Pilot, "id" | "createdAt" | "updatedAt">;
 
-export interface ScheduledFlight {
-  id: number;
-  schedule_id: number;
-  route_id: number;
-  sequence_order: number;
-  departure_time: string;
-  arrival_time: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-}
-
-export interface FlightHistory {
-  id: number;
-  pilot_id: number;
-  route_id: number;
-  departure_time: string;
-  arrival_time: string;
-  departure_location: string;
-  arrival_location: string;
-  airline_iata: string;
-  flight_duration_min: number;
-  status: 'completed' | 'cancelled';
-}
-
 export interface FlightHistoryStats {
-  total_flights: number;
-  total_minutes: number;
-  airports_visited: number;
-  airlines_flown: number;
+  totalFlights: number;
+  totalHours: number;
+  airportsVisited: number;
+  airlinesFlown: number;
 }
 
 export interface RouteDetails {

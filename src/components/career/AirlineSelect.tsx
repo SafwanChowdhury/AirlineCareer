@@ -14,29 +14,29 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AirlineSelectProps } from "@/lib/types";
 
 interface Airline {
   iata: string;
   name: string;
 }
 
-interface AirlineSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}
-
 export function AirlineSelect({
   value,
   onChange,
   placeholder = "Select airline...",
+  disabled = false,
 }: AirlineSelectProps) {
   const [open, setOpen] = useState(false);
   const [airlines, setAirlines] = useState<Airline[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAirlines() {
       try {
+        setLoading(true);
+        setError(null);
         const response = await fetch("/api/airlines");
         if (!response.ok) {
           throw new Error("Failed to fetch airlines");
@@ -45,6 +45,11 @@ export function AirlineSelect({
         setAirlines(data);
       } catch (error) {
         console.error("Error fetching airlines:", error);
+        setError(
+          error instanceof Error ? error.message : "Failed to fetch airlines"
+        );
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -60,7 +65,11 @@ export function AirlineSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className={cn(
+            "w-full justify-between",
+            disabled && "opacity-50 cursor-not-allowed"
+          )}
+          disabled={disabled}
         >
           {value ? (
             <span>
@@ -77,8 +86,26 @@ export function AirlineSelect({
       <PopoverContent className="w-[400px] p-0">
         <Command>
           <CommandInput placeholder="Search airlines..." />
-          <CommandEmpty>No airline found.</CommandEmpty>
+          <CommandEmpty>
+            {loading ? "Loading..." : error || "No airline found."}
+          </CommandEmpty>
           <CommandGroup className="max-h-[300px] overflow-y-auto">
+            <CommandItem
+              value="clear-selection"
+              onSelect={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              disabled={disabled}
+            >
+              <Check
+                className={cn(
+                  "mr-2 h-4 w-4",
+                  !value ? "opacity-100" : "opacity-0"
+                )}
+              />
+              <span className="text-muted-foreground">Clear selection</span>
+            </CommandItem>
             {airlines.map((airline) => (
               <CommandItem
                 key={airline.iata}
@@ -87,6 +114,7 @@ export function AirlineSelect({
                   onChange(airline.iata);
                   setOpen(false);
                 }}
+                disabled={disabled}
               >
                 <Check
                   className={cn(

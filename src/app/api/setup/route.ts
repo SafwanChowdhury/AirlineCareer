@@ -46,6 +46,23 @@ export async function GET() {
       )
     `);
 
+    // Create route_details table
+    rawDb.exec(`
+      CREATE TABLE IF NOT EXISTS route_details (
+        route_id INTEGER PRIMARY KEY,
+        departure_iata TEXT NOT NULL,
+        departure_city TEXT NOT NULL,
+        departure_country TEXT NOT NULL,
+        arrival_iata TEXT NOT NULL,
+        arrival_city TEXT NOT NULL,
+        arrival_country TEXT NOT NULL,
+        distance_km INTEGER NOT NULL,
+        duration_min INTEGER NOT NULL,
+        airline_iata TEXT NOT NULL,
+        airline_name TEXT NOT NULL
+      )
+    `);
+
     console.log("Database setup complete!");
     return NextResponse.json({ message: "Database setup completed successfully" });
   } catch (error) {
