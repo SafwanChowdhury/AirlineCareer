@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  getPilotProfileById,
-  updatePilotProfile
-} from '@/lib/career-db';
 import { db } from "@/lib/db";
-import { PilotProfile } from "@/lib/types";
 import { eq } from "drizzle-orm";
 import { pilots } from "@/lib/schema";
 import { z } from "zod";
@@ -18,25 +13,37 @@ const pilotUpdateSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const pilot = await db.query.pilots.findFirst({
-      where: eq(pilots.id, parseInt(params.id, 10)),
-    });
+    const { id } = await Promise.resolve(context.params);
+    const pilotId = parseInt(id, 10);
+    
+    if (isNaN(pilotId)) {
+      return NextResponse.json(
+        { error: "Invalid pilot ID" },
+        { status: 400 }
+      );
+    }
 
-    if (!pilot) {
+    const pilot = await db
+      .select()
+      .from(pilots)
+      .where(eq(pilots.id, pilotId))
+      .limit(1);
+
+    if (!pilot || pilot.length === 0) {
       return NextResponse.json(
         { error: "Pilot not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(pilot);
-  } catch (error) {
-    console.error("Error fetching pilot:", error);
+    return NextResponse.json(pilot[0]);
+  } catch (err) {
+    console.error("Error fetching pilot:", err);
     return NextResponse.json(
-      { error: "Failed to fetch pilot" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -44,9 +51,11 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
+    const { id } = await Promise.resolve(context.params);
+    const pilotId = parseInt(id, 10);
     const body = await request.json();
     const validatedData = pilotUpdateSchema.parse(body);
 
@@ -56,7 +65,7 @@ export async function PUT(
         ...validatedData,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(pilots.id, parseInt(params.id, 10)))
+      .where(eq(pilots.id, pilotId))
       .returning();
 
     if (!updatedPilot) {
@@ -67,15 +76,15 @@ export async function PUT(
     }
 
     return NextResponse.json(updatedPilot);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input data", details: error.errors },
+        { error: "Invalid input data", details: err.errors },
         { status: 400 }
       );
     }
 
-    console.error("Error updating pilot:", error);
+    console.error("Error updating pilot:", err);
     return NextResponse.json(
       { error: "Failed to update pilot" },
       { status: 500 }
@@ -85,12 +94,15 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
+    const { id } = await Promise.resolve(context.params);
+    const pilotId = parseInt(id, 10);
+
     const [deletedPilot] = await db
       .delete(pilots)
-      .where(eq(pilots.id, parseInt(params.id, 10)))
+      .where(eq(pilots.id, pilotId))
       .returning();
 
     if (!deletedPilot) {
@@ -101,8 +113,8 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting pilot:", error);
+  } catch (err: unknown) {
+    console.error("Error deleting pilot:", err);
     return NextResponse.json(
       { error: "Failed to delete pilot" },
       { status: 500 }

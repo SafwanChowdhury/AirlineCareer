@@ -8,26 +8,47 @@ import * as schema from "./schema";
 // Initialize the database connection
 const sqlite = new Database(path.join(process.cwd(), "routes.db"), {
   readonly: false,
-  fileMustExist: true,
+  fileMustExist: false, // Allow creating the database if it doesn't exist
 });
 
 // Enable foreign keys
 sqlite.pragma("foreign_keys = ON");
 
+// Create tables if they don't exist
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS pilots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    home_base TEXT NOT NULL,
+    current_location TEXT NOT NULL,
+    preferred_airline TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pilot_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    start_location TEXT NOT NULL,
+    end_location TEXT NOT NULL,
+    duration_days INTEGER NOT NULL,
+    haul_preferences TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+
 // Create drizzle database instance
 export const db = drizzle(sqlite, { schema });
 
+// Export the raw sqlite instance for migrations
+export const rawDb = sqlite;
+
 // Helper function to run queries
-export function query(sql: string, params: any[] = []): Promise<any[]> {
-  return new Promise((resolve, reject) => {
-    sqlite.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(rows);
-    });
-  });
+export function query<T = any>(sql: string, params: any[] = []): T[] {
+  const stmt = sqlite.prepare(sql);
+  return stmt.all(params) as T[];
 }
 
 // Get all routes with details (paginated)

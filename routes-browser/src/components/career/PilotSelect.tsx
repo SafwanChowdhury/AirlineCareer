@@ -50,7 +50,7 @@ export function PilotSelect() {
         </SelectTrigger>
         <SelectContent>
           {pilots.map((pilot) => (
-            <SelectItem key={pilot.pilot_id} value={pilot.pilot_id.toString()}>
+            <SelectItem key={pilot.id} value={pilot.id.toString()}>
               {pilot.name}
             </SelectItem>
           ))}
