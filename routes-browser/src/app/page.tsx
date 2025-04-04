@@ -17,8 +17,19 @@ import { AirportSelect } from "@/components/airport-select";
 import { CountrySelect } from "@/components/country-select";
 import { DurationSlider } from "@/components/duration-slider";
 import { RouteTable } from "@/components/route-table";
-import { RouteFilters, RoutesResponse } from "@/types";
+import { RouteFilters } from "@/types";
 import { RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
+
+interface RoutesResponse {
+  data: any[];
+  pagination: {
+    totalCount: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
+}
 
 export default function Home() {
   // State for filters
@@ -67,6 +78,7 @@ export default function Home() {
       setCurrentPage(page);
     } catch (error) {
       console.error("Error fetching routes:", error);
+      toast.error("Failed to fetch routes");
     } finally {
       setLoading(false);
     }
@@ -87,6 +99,8 @@ export default function Home() {
       country: "",
       maxDuration: 0,
     });
+    setCurrentPage(1);
+    fetchRoutes(1);
   };
 
   // Handle page change
@@ -176,15 +190,16 @@ export default function Home() {
         <CardHeader>
           <CardTitle>Routes</CardTitle>
           <CardDescription>
-            {routesData?.pagination.totalCount
-              ? `Found ${routesData.pagination.totalCount} routes matching your criteria`
+            {routesData?.pagination?.totalCount
+              ? `Found ${routesData.pagination.totalCount.toLocaleString()} routes matching your criteria`
               : "No routes found"}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <RouteTable
-            data={routesData}
+            data={routesData?.data || []}
+            pagination={routesData?.pagination}
             currentPage={currentPage}
             onPageChange={handlePageChange}
             loading={loading}

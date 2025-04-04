@@ -1,52 +1,98 @@
 // src/app/api/routes/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getRoutes, getRoutesCount, getRouteById } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { and, like, or, eq, sql } from "drizzle-orm";
+import { routeDetails } from "@/lib/schema";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const url = new URL(req.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '20');
-    const id = url.searchParams.get('id');
-    
-    // If ID is provided, return specific route
-    if (id && !isNaN(parseInt(id))) {
-      const route = await getRouteById(parseInt(id));
-      if (!route) {
-        return NextResponse.json({ error: 'Route not found' }, { status: 404 });
-      }
-      return NextResponse.json(route);
+    const { searchParams } = new URL(request.url);
+    const airline = searchParams.get("airline");
+    const departure = searchParams.get("departure");
+    const arrival = searchParams.get("arrival");
+    const country = searchParams.get("country");
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+
+    if (airline) {
+      conditions.push(like(routeDetails.airlineName, `%${airline}%`));
     }
-    
-    // Otherwise, apply filters and return paginated results
-    const filters = {
-      airline: url.searchParams.get('airline') || undefined,
-      departure: url.searchParams.get('departure') || undefined,
-      arrival: url.searchParams.get('arrival') || undefined,
-      country: url.searchParams.get('country') || undefined,
-      maxDuration: url.searchParams.has('maxDuration') 
-        ? parseInt(url.searchParams.get('maxDuration') || '0') 
-        : undefined
-    };
-    
-    const [routes, totalCount] = await Promise.all([
-      getRoutes(page, limit, filters),
-      getRoutesCount(filters)
-    ]);
-    
+
+    if (departure) {
+      conditions.push(
+        or(
+          eq(routeDetails.departureIata, departure),
+          like(routeDetails.departureCity, `%${departure}%`)
+        )
+      );
+    }
+
+    if (arrival) {
+      conditions.push(
+        or(
+          eq(routeDetails.arrivalIata, arrival),
+          like(routeDetails.arrivalCity, `%${arrival}%`)
+        )
+      );
+    }
+
+    if (country) {
+      conditions.push(
+        or(
+          eq(routeDetails.departureCountry, country),
+          eq(routeDetails.arrivalCountry, country)
+        )
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(routeDetails)
+      .where(whereClause);
+
+    // Get paginated results
+    const routes = await db
+      .select()
+      .from(routeDetails)
+      .where(whereClause)
+      .orderBy(routeDetails.departureIata, routeDetails.arrivalIata)
+      .limit(limit)
+      .offset(offset);
+
+    // Transform the data to match the expected format
+    const transformedRoutes = routes.map(route => ({
+      route_id: route.routeId,
+      departure_iata: route.departureIata,
+      departure_city: route.departureCity,
+      departure_country: route.departureCountry,
+      arrival_iata: route.arrivalIata,
+      arrival_city: route.arrivalCity,
+      arrival_country: route.arrivalCountry,
+      airline_iata: route.airlineIata,
+      airline_name: route.airlineName,
+      distance_km: route.distanceKm,
+      duration_min: route.durationMin
+    }));
+
     return NextResponse.json({
-      data: routes,
+      data: transformedRoutes,
       pagination: {
-        page,
-        limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit)
+        totalCount: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        limit
       }
     });
   } catch (error) {
-    console.error('Error fetching routes:', error);
+    console.error("Error fetching routes:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch routes' },
+      { error: "Failed to fetch routes" },
       { status: 500 }
     );
   }

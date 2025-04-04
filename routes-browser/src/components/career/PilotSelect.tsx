@@ -45,7 +45,7 @@ export function PilotSelect() {
         value={pilotId?.toString()}
         onValueChange={(value) => setPilotId(parseInt(value, 10))}
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[200px] bg-white text-slate-900">
           <SelectValue placeholder="Select a pilot" />
         </SelectTrigger>
         <SelectContent>
@@ -57,15 +57,25 @@ export function PilotSelect() {
         </SelectContent>
       </Select>
       {pilotId && (
-        <Button variant="outline" size="icon" asChild>
+        <Button
+          variant="secondary"
+          size="icon"
+          asChild
+          className="bg-white hover:bg-slate-200"
+        >
           <Link href={`/career/pilots/${pilotId}`}>
-            <Settings className="h-4 w-4" />
+            <Settings className="h-4 w-4 text-slate-900" />
           </Link>
         </Button>
       )}
-      <Button variant="outline" size="icon" asChild>
+      <Button
+        variant="secondary"
+        size="icon"
+        asChild
+        className="bg-white hover:bg-slate-200"
+      >
         <Link href="/career/pilots/new">
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 text-slate-900" />
         </Link>
       </Button>
     </div>

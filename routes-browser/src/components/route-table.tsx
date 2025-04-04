@@ -21,10 +21,31 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { RouteDetails, RoutesResponse } from "@/types";
+
+interface RouteDetails {
+  route_id: number;
+  departure_iata: string;
+  departure_city: string;
+  departure_country: string;
+  arrival_iata: string;
+  arrival_city: string;
+  arrival_country: string;
+  airline_iata: string;
+  airline_name: string;
+  distance_km: number;
+  duration_min: number;
+}
+
+interface PaginationInfo {
+  totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  limit: number;
+}
 
 interface RouteTableProps {
-  data: RoutesResponse | null;
+  data: RouteDetails[];
+  pagination?: PaginationInfo;
   currentPage: number;
   onPageChange: (page: number) => void;
   loading: boolean;
@@ -32,6 +53,7 @@ interface RouteTableProps {
 
 export function RouteTable({
   data,
+  pagination,
   currentPage,
   onPageChange,
   loading,
@@ -46,7 +68,7 @@ export function RouteTable({
     );
   }
 
-  if (!data || data.data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="text-center p-8 bg-gray-50 rounded-md">
         <h3 className="text-lg font-medium">No routes found</h3>
@@ -58,17 +80,28 @@ export function RouteTable({
   }
 
   // Format flight duration to hours and minutes
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+  const formatDuration = (minutes: string | number) => {
+    const mins = Number(minutes);
+    if (isNaN(mins)) return "N/A";
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return `${hours}h ${remainingMins}m`;
+  };
+
+  // Format distance with thousand separators
+  const formatDistance = (distance: string | number) => {
+    const dist = Number(distance);
+    return isNaN(dist) ? "N/A" : dist.toLocaleString();
   };
 
   return (
     <div>
       <Table>
         <TableCaption>
-          Showing {data.data.length} of {data.pagination.totalCount} routes
+          {pagination &&
+            `Showing ${
+              data.length
+            } of ${pagination.totalCount.toLocaleString()} routes`}
         </TableCaption>
         <TableHeader>
           <TableRow>
@@ -81,7 +114,7 @@ export function RouteTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.data.map((route) => (
+          {data.map((route) => (
             <TableRow key={route.route_id}>
               <TableCell className="font-medium">
                 {route.departure_city} ({route.departure_iata})
@@ -102,7 +135,7 @@ export function RouteTable({
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                {route.distance_km} km
+                {formatDistance(route.distance_km)} km
               </TableCell>
               <TableCell className="text-right">
                 {formatDuration(route.duration_min)}
@@ -161,7 +194,10 @@ export function RouteTable({
 
                           <div className="space-y-2">
                             <h4 className="font-semibold">Flight Details</h4>
-                            <p>Distance: {selectedRoute.distance_km} km</p>
+                            <p>
+                              Distance:{" "}
+                              {formatDistance(selectedRoute.distance_km)} km
+                            </p>
                             <p>
                               Duration:{" "}
                               {formatDuration(selectedRoute.duration_min)}
@@ -185,31 +221,33 @@ export function RouteTable({
       </Table>
 
       {/* Pagination controls */}
-      <div className="flex items-center justify-between py-4">
-        <div className="text-sm text-gray-500">
-          Page {currentPage} of {data.pagination.totalPages}
+      {pagination && (
+        <div className="flex items-center justify-between py-4">
+          <div className="text-sm text-gray-500">
+            Page {currentPage} of {pagination.totalPages}
+          </div>
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage >= pagination.totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
-        <div className="flex space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= data.pagination.totalPages}
-          >
-            Next
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
