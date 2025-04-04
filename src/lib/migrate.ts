@@ -34,7 +34,8 @@ async function main() {
         duration_days INTEGER NOT NULL,
         haul_preferences TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (pilot_id) REFERENCES pilots(id)
       )
     `);
 

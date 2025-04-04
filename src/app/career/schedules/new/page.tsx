@@ -9,40 +9,48 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePilot } from "@/lib/contexts/pilot-context";
 
-interface FormData {
+type FormData = {
   name: string;
-  startLocation: string | null;  // null means use current location
+  startLocation: string | null;
   durationDays: number;
   preferences: {
     shortHaul: number;
     mediumHaul: number;
     longHaul: number;
   };
-}
-
-const initialFormData: FormData = {
-  name: "",
-  startLocation: null,
-  durationDays: 1,
-  preferences: {
-    shortHaul: 33,
-    mediumHaul: 33,
-    longHaul: 34
-  }
 };
 
 export default function NewSchedulePage() {
   const router = useRouter();
   const { pilotId } = usePilot();
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formData, setFormData] = useState<FormData>({
+    name: "",
+    startLocation: null,
+    durationDays: 1,
+    preferences: {
+      shortHaul: 33,
+      mediumHaul: 33,
+      longHaul: 34,
+    },
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  if (!pilotId) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-center text-muted-foreground">
+              No pilot profile selected. Please create or select a pilot profile
+              to continue.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!pilotId) {
-      toast.error("No pilot selected");
-      return;
-    }
 
     try {
       const response = await fetch("/api/career/schedules/generate", {
@@ -52,10 +60,7 @@ export default function NewSchedulePage() {
         },
         body: JSON.stringify({
           pilotId: pilotId.toString(),
-          name: formData.name,
-          startLocation: formData.startLocation,
-          durationDays: formData.durationDays,
-          preferences: formData.preferences
+          ...formData,
         }),
       });
 
@@ -67,32 +72,48 @@ export default function NewSchedulePage() {
       toast.success("Schedule created successfully");
       router.push("/career");
     } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error("An unexpected error occurred");
-      }
+      toast.error(
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     }
   };
 
-  const handleChange = (field: keyof FormData, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const updatePreferences = (
+    type: "shortHaul" | "mediumHaul" | "longHaul",
+    value: number
+  ) => {
+    const remaining = 100 - value;
+    let newPreferences;
 
-  if (!pilotId) {
-    return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardContent className="py-8">
-            <div className="text-center text-muted-foreground">
-              No pilot profile selected. Please create or select a pilot profile
-              to continue.
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+    switch (type) {
+      case "shortHaul":
+        newPreferences = {
+          shortHaul: value,
+          mediumHaul: Math.floor(remaining / 2),
+          longHaul: Math.ceil(remaining / 2),
+        };
+        break;
+      case "mediumHaul":
+        newPreferences = {
+          shortHaul: Math.floor(remaining / 2),
+          mediumHaul: value,
+          longHaul: Math.ceil(remaining / 2),
+        };
+        break;
+      case "longHaul":
+        newPreferences = {
+          shortHaul: Math.floor(remaining / 2),
+          mediumHaul: Math.ceil(remaining / 2),
+          longHaul: value,
+        };
+        break;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      preferences: newPreferences,
+    }));
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -107,19 +128,30 @@ export default function NewSchedulePage() {
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => handleChange("name", e.target.value)}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
                 placeholder="Enter schedule name"
                 required
               />
             </div>
 
             <div>
-              <Label htmlFor="startLocation">Override Start Location (Optional)</Label>
+              <Label htmlFor="startLocation">
+                Override Start Location (Optional)
+              </Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="startLocation"
                   value={formData.startLocation || ""}
-                  onChange={(e) => handleChange("startLocation", e.target.value ? e.target.value.toUpperCase() : null)}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      startLocation: e.target.value
+                        ? e.target.value.toUpperCase()
+                        : null,
+                    }))
+                  }
                   placeholder="Use current location"
                   maxLength={3}
                 />
@@ -127,7 +159,9 @@ export default function NewSchedulePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => handleChange("startLocation", null)}
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, startLocation: null }))
+                    }
                   >
                     Reset
                   </Button>
@@ -147,7 +181,10 @@ export default function NewSchedulePage() {
                 max={30}
                 value={formData.durationDays}
                 onChange={(e) =>
-                  handleChange("durationDays", parseInt(e.target.value, 10))
+                  setFormData((prev) => ({
+                    ...prev,
+                    durationDays: parseInt(e.target.value, 10),
+                  }))
                 }
                 required
               />
@@ -158,7 +195,7 @@ export default function NewSchedulePage() {
               <div className="space-y-6">
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span>Short Haul (< 3 hours)</span>
+                    <span>Short Haul (&lt; 3 hours)</span>
                     <span>{formData.preferences.shortHaul}%</span>
                   </div>
                   <Input
@@ -166,17 +203,12 @@ export default function NewSchedulePage() {
                     min="0"
                     max="100"
                     value={formData.preferences.shortHaul}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      const remaining = 100 - value;
-                      handleChange("preferences", {
-                        shortHaul: value,
-                        mediumHaul: Math.floor(remaining / 2),
-                        longHaul: Math.ceil(remaining / 2)
-                      });
-                    }}
+                    onChange={(e) =>
+                      updatePreferences("shortHaul", parseInt(e.target.value))
+                    }
                   />
                 </div>
+
                 <div>
                   <div className="flex justify-between mb-2">
                     <span>Medium Haul (3-6 hours)</span>
@@ -187,20 +219,15 @@ export default function NewSchedulePage() {
                     min="0"
                     max="100"
                     value={formData.preferences.mediumHaul}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      const remaining = 100 - value;
-                      handleChange("preferences", {
-                        shortHaul: Math.floor(remaining / 2),
-                        mediumHaul: value,
-                        longHaul: Math.ceil(remaining / 2)
-                      });
-                    }}
+                    onChange={(e) =>
+                      updatePreferences("mediumHaul", parseInt(e.target.value))
+                    }
                   />
                 </div>
+
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span>Long Haul (> 6 hours)</span>
+                    <span>Long Haul (&gt; 6 hours)</span>
                     <span>{formData.preferences.longHaul}%</span>
                   </div>
                   <Input
@@ -208,15 +235,9 @@ export default function NewSchedulePage() {
                     min="0"
                     max="100"
                     value={formData.preferences.longHaul}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      const remaining = 100 - value;
-                      handleChange("preferences", {
-                        shortHaul: Math.floor(remaining / 2),
-                        mediumHaul: Math.ceil(remaining / 2),
-                        longHaul: value
-                      });
-                    }}
+                    onChange={(e) =>
+                      updatePreferences("longHaul", parseInt(e.target.value))
+                    }
                   />
                 </div>
               </div>
@@ -236,4 +257,5 @@ export default function NewSchedulePage() {
         </CardContent>
       </Card>
     </div>
-  ); 
+  );
+}

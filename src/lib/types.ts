@@ -1,22 +1,15 @@
 import { InferModel } from "drizzle-orm";
-import { airports, schedules } from "./schema";
+import { airports, schedules, pilots } from "./schema";
 
 export type Airport = InferModel<typeof airports>;
 export type Schedule = InferModel<typeof schedules>;
+export type Pilot = InferModel<typeof pilots>;
 
 export type NewSchedule = Omit<Schedule, "id">;
-
-export interface PilotProfile {
-  pilot_id: number;
-  name: string;
-  home_base: string;
-  current_location: string;
-  preferred_airline: string | null;
-  created_at: string;
-}
+export type NewPilot = Omit<Pilot, "id" | "createdAt" | "updatedAt">;
 
 export interface ScheduledFlight {
-  scheduled_flight_id: number;
+  id: number;
   schedule_id: number;
   route_id: number;
   sequence_order: number;
@@ -26,7 +19,7 @@ export interface ScheduledFlight {
 }
 
 export interface FlightHistory {
-  history_id: number;
+  id: number;
   pilot_id: number;
   route_id: number;
   departure_time: string;

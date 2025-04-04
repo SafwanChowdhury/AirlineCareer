@@ -1,25 +1,33 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { schedules } from "@/lib/schema";
+import { schedules, pilots } from "@/lib/schema";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const pilotId = parseInt(params.id);
-    if (isNaN(pilotId)) {
+    const { id } = context.params;
+    
+    // Check if pilot exists first
+    const pilot = await db
+      .select()
+      .from(pilots)
+      .where(eq(pilots.id, parseInt(id)))
+      .get();
+
+    if (!pilot) {
       return NextResponse.json(
-        { error: "Invalid pilot ID" },
-        { status: 400 }
+        { error: "Pilot not found" },
+        { status: 404 }
       );
     }
 
     const flights = await db
       .select()
       .from(schedules)
-      .where(eq(schedules.pilotId, pilotId.toString()))
+      .where(eq(schedules.pilotId, id))
       .orderBy(schedules.createdAt);
 
     return NextResponse.json(flights);

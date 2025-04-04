@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   createSchedule,
   addFlightToSchedule,
-  getPilotProfileById
+  getPilotById
 } from '@/lib/career-db';
 import { generateSchedule } from '@/lib/schedule-generator';
 
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     // Verify pilot exists and get their current location and home base
-    const pilot = await getPilotProfileById(pilotId);
+    const pilot = await getPilotById(pilotId);
     if (!pilot) {
       return NextResponse.json(
         { error: 'Pilot not found' },
