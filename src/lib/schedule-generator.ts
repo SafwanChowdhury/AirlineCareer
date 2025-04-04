@@ -178,6 +178,5 @@ export async function generateSchedule(
     currentHaulType = getHaulType(selectedRoute.duration_min);
   }
 
-  // If we couldn't return to home base, that's okay - we'll end wherever we are
   return flights;
 } 

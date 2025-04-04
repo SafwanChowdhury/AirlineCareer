@@ -14,7 +14,6 @@ export async function POST(request: Request) {
       name,
       startLocation,
       durationDays,
-      airline,
       preferences
     } = body;
 
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
       const generatedFlights = await generateSchedule(
         actualStartLocation,
         durationDays,
-        airline,
+        pilot.preferred_airline,
         preferences,
         pilot.home_base
       );

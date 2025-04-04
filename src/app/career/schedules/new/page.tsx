@@ -1,3 +1,14 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { usePilot } from "@/lib/contexts/pilot-context";
+
 interface FormData {
   name: string;
   startLocation: string | null;  // null means use current location
@@ -20,7 +31,70 @@ const initialFormData: FormData = {
   }
 };
 
-return (
+export default function NewSchedulePage() {
+  const router = useRouter();
+  const { pilotId } = usePilot();
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!pilotId) {
+      toast.error("No pilot selected");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/career/schedules/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          pilotId: pilotId.toString(),
+          name: formData.name,
+          startLocation: formData.startLocation,
+          durationDays: formData.durationDays,
+          preferences: formData.preferences
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create schedule");
+      }
+
+      toast.success("Schedule created successfully");
+      router.push("/career");
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("An unexpected error occurred");
+      }
+    }
+  };
+
+  const handleChange = (field: keyof FormData, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  if (!pilotId) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              No pilot profile selected. Please create or select a pilot profile
+              to continue.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
     <div className="container mx-auto py-8">
       <Card>
         <CardHeader>
