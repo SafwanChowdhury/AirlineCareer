@@ -18,14 +18,14 @@ export function FlightCard({
   onStatusChange,
   showActions = true,
 }: FlightCardProps) {
-  const departureTime = new Date(flight.departure_time);
-  const arrivalTime = new Date(flight.arrival_time);
-  const duration = flight.duration_min;
+  const departureTime = new Date(flight.departureTime);
+  const arrivalTime = new Date(flight.arrivalTime);
+  const duration = flight.durationMin;
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
 
   const statusVariants: Record<
-    ScheduledFlightWithRoute["status"],
+    string,
     "default" | "secondary" | "outline" | "destructive"
   > = {
     scheduled: "secondary",
@@ -39,9 +39,9 @@ export function FlightCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-semibold">
-            {flight.airline_name} {flight.airline_iata}
+            {flight.airlineName} {flight.airlineIata}
           </CardTitle>
-          <Badge variant={statusVariants[flight.status]}>
+          <Badge variant={statusVariants[flight.status] || "secondary"}>
             {flight.status.replace("_", " ")}
           </Badge>
         </div>
@@ -50,13 +50,13 @@ export function FlightCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-muted-foreground">From</div>
-            <div className="font-medium">{flight.departure_city}</div>
-            <div className="text-sm">{flight.departure_iata}</div>
+            <div className="font-medium">{flight.departureCity}</div>
+            <div className="text-sm">{flight.departureIata}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">To</div>
-            <div className="font-medium">{flight.arrival_city}</div>
-            <div className="text-sm">{flight.arrival_iata}</div>
+            <div className="font-medium">{flight.arrivalCity}</div>
+            <div className="text-sm">{flight.arrivalIata}</div>
           </div>
         </div>
 

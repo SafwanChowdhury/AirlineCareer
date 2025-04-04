@@ -53,11 +53,12 @@ export default function RootLayout({
                       <span>Career</span>
                     </Link>
                     <Link
-                      href="/profile"
+                      href="/career/pilots"
                       className="flex items-center space-x-2 hover:text-blue-400 transition-colors"
+                      id="profile-link"
                     >
                       <User className="h-5 w-5" />
-                      <span>Profile</span>
+                      <span>My Pilots</span>
                     </Link>
                   </div>
                 </div>

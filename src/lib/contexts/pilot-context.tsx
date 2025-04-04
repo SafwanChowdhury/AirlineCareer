@@ -6,7 +6,7 @@ import { PilotProfile } from "@/lib/types";
 interface PilotContextType {
   pilotId: number | null;
   pilot: PilotProfile | null;
-  setPilotId: (id: number) => void;
+  setPilotId: (id: number | null) => void;
 }
 
 const PilotContext = createContext<PilotContextType>({
@@ -16,9 +16,27 @@ const PilotContext = createContext<PilotContextType>({
 });
 
 export function PilotProvider({ children }: { children: React.ReactNode }) {
-  const [pilotId, setPilotId] = useState<number | null>(1); // Default to pilot ID 1 for now
+  // Initialize from localStorage if available
+  const [pilotId, setPilotId] = useState<number | null>(() => {
+    // Only run in client-side
+    if (typeof window !== "undefined") {
+      const savedPilotId = localStorage.getItem("currentPilotId");
+      return savedPilotId ? parseInt(savedPilotId, 10) : null;
+    }
+    return null;
+  });
   const [pilot, setPilot] = useState<PilotProfile | null>(null);
 
+  // Save pilotId to localStorage when it changes
+  useEffect(() => {
+    if (pilotId) {
+      localStorage.setItem("currentPilotId", pilotId.toString());
+    } else {
+      localStorage.removeItem("currentPilotId");
+    }
+  }, [pilotId]);
+
+  // Fetch pilot data when pilotId changes
   useEffect(() => {
     if (pilotId) {
       fetch(`/api/career/pilots/${pilotId}`)
@@ -26,11 +44,21 @@ export function PilotProvider({ children }: { children: React.ReactNode }) {
         .then((data) => {
           if (!data.error) {
             setPilot(data);
+          } else {
+            console.error("Error fetching pilot:", data.error);
+            setPilot(null);
+            // Reset pilotId if pilot not found
+            if (data.error === "Pilot not found") {
+              setPilotId(null);
+            }
           }
         })
         .catch((error) => {
           console.error("Error fetching pilot profile:", error);
+          setPilot(null);
         });
+    } else {
+      setPilot(null);
     }
   }, [pilotId]);
 

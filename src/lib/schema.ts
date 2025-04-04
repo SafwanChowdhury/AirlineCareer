@@ -4,14 +4,20 @@ export const airports = sqliteTable("airports", {
   id: integer("id").primaryKey(),
   iataCode: text("iata_code").notNull(),
   name: text("name").notNull(),
-  city: text("city").notNull(),
+  cityName: text("city_name").notNull(),
   country: text("country").notNull(),
   latitude: text("latitude").notNull(),
   longitude: text("longitude").notNull()
 });
 
-export const pilots = sqliteTable("pilots", {
+export const airlines = sqliteTable("airlines", {
   id: integer("id").primaryKey(),
+  iata: text("iata").notNull(),
+  name: text("name").notNull()
+});
+
+export const pilots = sqliteTable("pilots", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   homeBase: text("home_base").notNull(),
   currentLocation: text("current_location").notNull(),
@@ -21,13 +27,13 @@ export const pilots = sqliteTable("pilots", {
 });
 
 export const schedules = sqliteTable("schedules", {
-  id: integer("id").primaryKey(),
-  pilotId: integer("pilot_id").notNull().references(() => pilots.id),
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pilotId: text("pilot_id").notNull(), // Keep as text for backward compatibility
   name: text("name").notNull(),
   startLocation: text("start_location").notNull(),
   endLocation: text("end_location").notNull(),
   durationDays: integer("duration_days").notNull(),
-  haulPreferences: text("haul_preferences"),
+  haulPreferences: text("haul_preferences").notNull(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
 });
@@ -47,9 +53,9 @@ export const routeDetails = sqliteTable("route_details", {
 });
 
 export const scheduledFlights = sqliteTable("scheduled_flights", {
-  id: integer("id").primaryKey(),
-  scheduleId: integer("schedule_id").notNull().references(() => schedules.id),
-  routeId: integer("route_id").notNull().references(() => routeDetails.id),
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scheduleId: integer("schedule_id").notNull(),
+  routeId: integer("route_id").notNull(),
   sequenceOrder: integer("sequence_order").notNull(),
   departureTime: text("departure_time").notNull(),
   arrivalTime: text("arrival_time").notNull(),
@@ -57,9 +63,9 @@ export const scheduledFlights = sqliteTable("scheduled_flights", {
 });
 
 export const flightHistory = sqliteTable("flight_history", {
-  id: integer("id").primaryKey(),
-  pilotId: integer("pilot_id").notNull().references(() => pilots.id),
-  routeId: integer("route_id").notNull().references(() => routeDetails.id),
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pilotId: integer("pilot_id").notNull(),
+  routeId: integer("route_id").notNull(),
   departureTime: text("departure_time").notNull(),
   arrivalTime: text("arrival_time").notNull(),
   departureLocation: text("departure_location").notNull(),
@@ -67,4 +73,4 @@ export const flightHistory = sqliteTable("flight_history", {
   airlineIata: text("airline_iata").notNull(),
   flightDurationMin: integer("flight_duration_min").notNull(),
   status: text("status").default("completed")
-}); 
+});
