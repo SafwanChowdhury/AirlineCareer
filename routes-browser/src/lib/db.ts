@@ -1,17 +1,18 @@
 // src/lib/db.ts
 
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import Database from "better-sqlite3";
+import path from "path";
 
 // Initialize the database connection
-const dbPath = path.resolve(process.cwd(), 'routes.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Could not connect to database', err);
-  } else {
-    console.log('Connected to database');
-  }
+const db = new Database(path.join(process.cwd(), "routes.db"), {
+  readonly: false,
+  fileMustExist: true,
 });
+
+// Enable foreign keys
+db.pragma("foreign_keys = ON");
+
+export { db };
 
 // Helper function to run queries
 export function query(sql: string, params: any[] = []): Promise<any[]> {
