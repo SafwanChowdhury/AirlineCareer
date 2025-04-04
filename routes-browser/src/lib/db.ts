@@ -1,23 +1,26 @@
 // src/lib/db.ts
 
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import path from "path";
+import * as schema from "./schema";
 
 // Initialize the database connection
-const db = new Database(path.join(process.cwd(), "routes.db"), {
+const sqlite = new Database(path.join(process.cwd(), "routes.db"), {
   readonly: false,
   fileMustExist: true,
 });
 
 // Enable foreign keys
-db.pragma("foreign_keys = ON");
+sqlite.pragma("foreign_keys = ON");
 
-export { db };
+// Create drizzle database instance
+export const db = drizzle(sqlite, { schema });
 
 // Helper function to run queries
 export function query(sql: string, params: any[] = []): Promise<any[]> {
   return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
+    sqlite.all(sql, params, (err, rows) => {
       if (err) {
         reject(err);
         return;

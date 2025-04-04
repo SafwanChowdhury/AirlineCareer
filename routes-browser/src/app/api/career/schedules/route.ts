@@ -4,51 +4,62 @@ import {
   getSchedulesByPilotId,
   getPilotProfileById
 } from '@/lib/career-db';
+import { db } from "@/lib/db";
+import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { airports, schedules } from "@/lib/schema";
+import type { Schedule } from "@/lib/types";
+
+const scheduleInputSchema = z.object({
+  name: z.string(),
+  startLocation: z.string(),
+  endLocation: z.string(),
+  durationDays: z.number(),
+  haulPreferences: z.string(),
+  pilotId: z.string()
+});
+
+type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const {
-      pilotId,
-      name,
-      startLocation,
-      endLocation,
-      durationDays,
-      preferences
-    } = body;
+    const validatedData = scheduleInputSchema.parse(body) as ScheduleInput;
 
-    if (!pilotId || !name || !startLocation || !endLocation || !durationDays) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    // Validate airport codes
+    const startAirport = await db.query.airports.findFirst({
+      where: eq(airports.iataCode, validatedData.startLocation)
+    });
+
+    const endAirport = await db.query.airports.findFirst({
+      where: eq(airports.iataCode, validatedData.endLocation)
+    });
+
+    if (!startAirport || !endAirport) {
+      throw new Error("Invalid airport codes provided");
     }
 
-    // Verify pilot exists
-    const pilot = await getPilotProfileById(pilotId);
-    if (!pilot) {
-      return NextResponse.json(
-        { error: 'Pilot not found' },
-        { status: 404 }
-      );
-    }
+    // Create schedule
+    const [newSchedule] = await db.insert(schedules).values({
+      name: validatedData.name,
+      startLocation: validatedData.startLocation,
+      endLocation: validatedData.endLocation,
+      durationDays: validatedData.durationDays,
+      haulPreferences: validatedData.haulPreferences,
+      pilotId: validatedData.pilotId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }).returning() as Schedule[];
 
-    const scheduleId = await createSchedule(
-      pilotId,
-      name,
-      startLocation,
-      endLocation,
-      durationDays,
-      JSON.stringify(preferences || {})
-    );
-
-    return NextResponse.json({ scheduleId }, { status: 201 });
+    return NextResponse.json({ id: newSchedule.id });
   } catch (error) {
-    console.error('Error creating schedule:', error);
-    return NextResponse.json(
-      { error: 'Failed to create schedule' },
-      { status: 500 }
-    );
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input data", details: error.errors }, { status: 400 });
+    }
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
   }
 }
 

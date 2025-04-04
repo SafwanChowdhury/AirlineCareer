@@ -2,15 +2,19 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FlightCard } from "@/components/career/FlightCard";
-import { Plane, MapPin, Building2 } from "lucide-react";
+import { Plane, MapPin, Building2, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   usePilotProfile,
   usePilotStats,
   useScheduledFlights,
   updateFlightStatus,
 } from "@/lib/hooks/use-pilot";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
+import { ScheduledFlightWithRoute } from "@/lib/types";
+import Link from "next/link";
+import { usePilot } from "@/lib/contexts/pilot-context";
 
 function LoadingCard() {
   return (
@@ -63,13 +67,13 @@ function LoadingFlightCard() {
 }
 
 export default function CareerPage() {
-  // TODO: Get the actual pilot ID from the session/auth
-  const pilotId = 1;
-  const { toast } = useToast();
+  const { pilotId } = usePilot();
 
-  const { pilot, isLoading: isLoadingPilot } = usePilotProfile(pilotId);
-  const { stats, isLoading: isLoadingStats } = usePilotStats(pilotId);
-  const { flights, isLoading: isLoadingFlights } = useScheduledFlights(pilotId);
+  const { pilot, isLoading: isLoadingPilot } = usePilotProfile(pilotId || 0);
+  const { stats, isLoading: isLoadingStats } = usePilotStats(pilotId || 0);
+  const { flights, isLoading: isLoadingFlights } = useScheduledFlights(
+    pilotId || 0
+  );
 
   const handleStatusChange = async (
     flightId: number,
@@ -77,18 +81,30 @@ export default function CareerPage() {
   ) => {
     try {
       await updateFlightStatus(flightId, status);
-      toast({
-        title: "Flight Updated",
-        description: `Flight status changed to ${status.replace("_", " ")}`,
+      toast.success("Flight Updated", {
+        description: `Status changed to ${status.replace("_", " ")}`,
       });
-    } catch (error) {
-      toast({
-        title: "Error",
+    } catch {
+      toast.error("Error", {
         description: "Failed to update flight status",
-        variant: "destructive",
       });
     }
   };
+
+  if (!pilotId) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              No pilot profile selected. Please create or select a pilot profile
+              to continue.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8">
@@ -185,7 +201,15 @@ export default function CareerPage() {
 
         {/* Scheduled Flights */}
         <div>
-          <h2 className="text-lg font-semibold mb-4">Scheduled Flights</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold">Scheduled Flights</h2>
+            <Button asChild>
+              <Link href="/career/schedules/new">
+                <Plus className="w-4 h-4 mr-2" />
+                Create Schedule
+              </Link>
+            </Button>
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {isLoadingFlights ? (
               <>
@@ -194,7 +218,7 @@ export default function CareerPage() {
                 <LoadingFlightCard />
               </>
             ) : flights.length > 0 ? (
-              flights.map((flight) => (
+              flights.map((flight: ScheduledFlightWithRoute) => (
                 <FlightCard
                   key={flight.scheduled_flight_id}
                   flight={flight}

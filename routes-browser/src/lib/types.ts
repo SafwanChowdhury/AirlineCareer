@@ -1,20 +1,17 @@
+import { InferModel } from "drizzle-orm";
+import { airports, schedules } from "./schema";
+
+export type Airport = InferModel<typeof airports>;
+export type Schedule = InferModel<typeof schedules>;
+
+export type NewSchedule = Omit<Schedule, "id">;
+
 export interface PilotProfile {
   pilot_id: number;
   name: string;
   home_base: string;
   current_location: string;
   preferred_airline: string | null;
-  created_at: string;
-}
-
-export interface Schedule {
-  schedule_id: number;
-  pilot_id: number;
-  name: string;
-  start_location: string;
-  end_location: string;
-  duration_days: number;
-  haul_preferences: string;
   created_at: string;
 }
 
