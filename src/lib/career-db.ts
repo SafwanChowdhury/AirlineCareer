@@ -15,11 +15,12 @@ import type {
   RouteDetail,
   CreatePilotRequest,
   CreateScheduleRequest,
-  AddFlightToScheduleRequest,
+  UpdatePilotRequest,
   FlightHistoryStats,
   ScheduledFlightWithRoute,
   FlightHistoryWithRoute
 } from './types';
+import { ApiError } from './api-utils';
 
 // Initialize career tables - this should be handled by migrations instead
 // but keeping for backwards compatibility
@@ -29,169 +30,159 @@ export async function initializeCareerTables(): Promise<void> {
 }
 
 // Pilot Functions
-export async function createPilot(data: CreatePilotRequest): Promise<number> {
+export async function getPilotById(id: number): Promise<Pilot | undefined> {
+  const result = await db
+    .select()
+    .from(pilots)
+    .where(eq(pilots.id, id));
+  return result[0];
+}
+
+export async function createPilot(data: CreatePilotRequest): Promise<Pilot> {
   const result = await db.insert(pilots).values({
     ...data,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  }).returning({ id: pilots.id });
+  }).returning();
   
-  return result[0].id;
-}
-
-export async function getPilots(): Promise<Pilot[]> {
-  return db.select().from(pilots).orderBy(pilots.createdAt);
-}
-
-export async function getPilotById(pilotId: number): Promise<Pilot | undefined> {
-  const result = await db.select().from(pilots).where(eq(pilots.id, pilotId));
   return result[0];
 }
 
-export async function updatePilot(
-  pilotId: number,
-  data: Partial<Pilot>
-): Promise<void> {
-  await db.update(pilots)
+export async function updatePilot(id: number, data: UpdatePilotRequest): Promise<Pilot> {
+  const result = await db
+    .update(pilots)
     .set({
       ...data,
       updatedAt: new Date().toISOString()
     })
-    .where(eq(pilots.id, pilotId));
+    .where(eq(pilots.id, id))
+    .returning();
+  
+  if (!result[0]) {
+    throw new ApiError('Pilot not found', 404);
+  }
+  
+  return result[0];
 }
 
-export async function updatePilotLocation(
-  pilotId: number,
-  newLocation: string
-): Promise<void> {
-  await updatePilot(pilotId, { currentLocation: newLocation });
+export async function deletePilot(id: number): Promise<void> {
+  const result = await db
+    .delete(pilots)
+    .where(eq(pilots.id, id))
+    .returning();
+  
+  if (!result[0]) {
+    throw new ApiError('Pilot not found', 404);
+  }
 }
 
 // Schedule Functions
-export async function createSchedule(data: CreateScheduleRequest): Promise<number> {
+export async function getScheduleById(id: number): Promise<Schedule | undefined> {
+  const result = await db
+    .select()
+    .from(schedules)
+    .where(eq(schedules.id, id));
+  return result[0];
+}
+
+export async function createSchedule(data: CreateScheduleRequest): Promise<Schedule> {
   const result = await db.insert(schedules).values({
     ...data,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  }).returning({ id: schedules.id });
+  }).returning();
   
-  return result[0].id;
-}
-
-export async function getSchedulesByPilotId(pilotId: number): Promise<Schedule[]> {
-  return db.select()
-    .from(schedules)
-    .where(eq(schedules.pilotId, pilotId))
-    .orderBy(desc(schedules.createdAt));
-}
-
-export async function getScheduleById(scheduleId: number): Promise<Schedule | undefined> {
-  const result = await db.select()
-    .from(schedules)
-    .where(eq(schedules.id, scheduleId));
   return result[0];
 }
 
-export async function deleteSchedule(scheduleId: number): Promise<void> {
-  await db.delete(scheduledFlights)
-    .where(eq(scheduledFlights.scheduleId, scheduleId));
-  await db.delete(schedules)
-    .where(eq(schedules.id, scheduleId));
-}
-
-// Scheduled Flight Functions
-export async function addFlightToSchedule(data: AddFlightToScheduleRequest): Promise<number> {
-  const result = await db.insert(scheduledFlights)
-    .values(data)
-    .returning({ id: scheduledFlights.id });
+export async function updateSchedule(id: number, data: Partial<Schedule>): Promise<Schedule> {
+  const result = await db
+    .update(schedules)
+    .set({
+      ...data,
+      updatedAt: new Date().toISOString()
+    })
+    .where(eq(schedules.id, id))
+    .returning();
   
-  return result[0].id;
+  if (!result[0]) {
+    throw new ApiError('Schedule not found', 404);
+  }
+  
+  return result[0];
 }
 
-export async function getFlightsByScheduleId(scheduleId: number): Promise<ScheduledFlightWithRoute[]> {
-  const result = await db.select({
-    ...scheduledFlights,
-    route: routeDetails
-  })
-  .from(scheduledFlights)
-  .innerJoin(routeDetails, eq(scheduledFlights.routeId, routeDetails.id))
-  .where(eq(scheduledFlights.scheduleId, scheduleId))
-  .orderBy(scheduledFlights.sequenceOrder);
+export async function deleteSchedule(id: number): Promise<void> {
+  const result = await db
+    .delete(schedules)
+    .where(eq(schedules.id, id))
+    .returning();
+  
+  if (!result[0]) {
+    throw new ApiError('Schedule not found', 404);
+  }
+}
 
-  return result.map(row => ({
-    ...row,
-    route: row.route
-  }));
+// Flight Functions
+export async function getScheduledFlightById(id: number): Promise<ScheduledFlightWithRoute | undefined> {
+  const result = await db
+    .select({
+      ...scheduledFlights,
+      ...routeDetails
+    })
+    .from(scheduledFlights)
+    .innerJoin(routeDetails, eq(scheduledFlights.routeId, routeDetails.routeId))
+    .where(eq(scheduledFlights.id, id));
+  
+  return result[0];
 }
 
 export async function updateFlightStatus(
-  scheduledFlightId: number,
-  status: string
-): Promise<void> {
-  await db.update(scheduledFlights)
+  id: number,
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+): Promise<ScheduledFlight> {
+  const result = await db
+    .update(scheduledFlights)
     .set({ status })
-    .where(eq(scheduledFlights.id, scheduledFlightId));
+    .where(eq(scheduledFlights.id, id))
+    .returning();
+  
+  if (!result[0]) {
+    throw new ApiError('Flight not found', 404);
+  }
+  
+  return result[0];
 }
 
 // Flight History Functions
-export async function addFlightToHistory(
-  pilotId: number,
-  routeId: number,
-  data: Partial<FlightHistory>
-): Promise<number> {
-  const result = await db.insert(flightHistory)
-    .values({
-      pilotId,
-      routeId,
-      ...data,
-      status: data.status || 'completed'
-    })
-    .returning({ id: flightHistory.id });
-  
-  return result[0].id;
-}
-
 export async function getFlightHistory(pilotId: number): Promise<FlightHistoryWithRoute[]> {
-  const result = await db.select({
-    ...flightHistory,
-    route: routeDetails
-  })
-  .from(flightHistory)
-  .innerJoin(routeDetails, eq(flightHistory.routeId, routeDetails.id))
-  .where(eq(flightHistory.pilotId, pilotId))
-  .orderBy(desc(flightHistory.departureTime));
-
-  return result.map(row => ({
-    ...row,
-    route: row.route
-  }));
+  return db
+    .select({
+      ...flightHistory,
+      ...routeDetails
+    })
+    .from(flightHistory)
+    .innerJoin(routeDetails, eq(flightHistory.routeId, routeDetails.routeId))
+    .where(eq(flightHistory.pilotId, pilotId))
+    .orderBy(desc(flightHistory.departureTime));
 }
 
 export async function getFlightHistoryStats(pilotId: number): Promise<FlightHistoryStats> {
-  const result = await db.select({
-    totalFlights: sql<number>`count(*)`,
-    totalMinutes: sql<number>`sum(${flightHistory.flightDurationMin})`,
-    airportsVisited: sql<number>`count(distinct ${flightHistory.departureLocation}) + count(distinct ${flightHistory.arrivalLocation})`,
-    airlinesFlown: sql<number>`count(distinct ${flightHistory.airlineIata})`
-  })
-  .from(flightHistory)
-  .where(eq(flightHistory.pilotId, pilotId))
-  .groupBy(flightHistory.pilotId);
+  const result = await db
+    .select({
+      totalFlights: sql<number>`COUNT(*)`,
+      totalMinutes: sql<number>`SUM(${flightHistory.flightDurationMin})`,
+      airportsVisited: sql<number>`COUNT(DISTINCT ${flightHistory.departureLocation}) + COUNT(DISTINCT ${flightHistory.arrivalLocation})`,
+      airlinesFlown: sql<number>`COUNT(DISTINCT ${flightHistory.airlineIata})`
+    })
+    .from(flightHistory)
+    .where(eq(flightHistory.pilotId, pilotId))
+    .groupBy(flightHistory.pilotId);
 
-  if (!result.length) {
-    return {
-      totalFlights: 0,
-      totalHours: 0,
-      airportsVisited: 0,
-      airlinesFlown: 0
-    };
-  }
-
-  const stats = result[0];
-  return {
-    ...stats,
-    totalHours: Math.round((stats.totalMinutes || 0) / 60),
-    airportsVisited: stats.airportsVisited || 0,
-    airlinesFlown: stats.airlinesFlown || 0
+  return result[0] || {
+    totalFlights: 0,
+    totalMinutes: 0,
+    airportsVisited: 0,
+    airlinesFlown: 0
   };
 }

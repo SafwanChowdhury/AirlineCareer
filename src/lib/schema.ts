@@ -67,4 +67,7 @@ export const flightHistory = sqliteTable("flight_history", {
   airlineIata: text("airline_iata").notNull(),
   flightDurationMin: integer("flight_duration_min").notNull(),
   status: text("status").default("completed")
-}); 
+});
+
+// Re-export tables from migration
+export * from './migrations/0000_initial_schema'; 

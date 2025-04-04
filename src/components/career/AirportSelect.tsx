@@ -1,4 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -11,49 +14,29 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface Airport {
-  iata: string;
-  name: string;
-  city_name: string;
-  country: string;
-}
+import { useAirports } from "@/lib/hooks/use-airport-data";
 
 interface AirportSelectProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  excludeAirports?: string[];
 }
 
 export function AirportSelect({
   value,
   onChange,
-  placeholder = "Select airport...",
+  placeholder = "Select airport",
+  excludeAirports = [],
 }: AirportSelectProps) {
   const [open, setOpen] = useState(false);
-  const [airports, setAirports] = useState<Airport[]>([]);
+  const { data: airports, isLoading } = useAirports();
 
-  useEffect(() => {
-    async function fetchAirports() {
-      try {
-        const response = await fetch("/api/airports");
-        if (!response.ok) {
-          throw new Error("Failed to fetch airports");
-        }
-        const data = await response.json();
-        setAirports(data);
-      } catch (error) {
-        console.error("Error fetching airports:", error);
-      }
-    }
+  const filteredAirports =
+    airports?.filter((airport) => !excludeAirports.includes(airport.iata)) ??
+    [];
 
-    fetchAirports();
-  }, []);
-
-  const selectedAirport = airports.find((a) => a.iata === value);
+  const selectedAirport = airports?.find((airport) => airport.iata === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -63,12 +46,11 @@ export function AirportSelect({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
+          disabled={isLoading}
         >
           {value ? (
             <span>
-              {selectedAirport
-                ? `${selectedAirport.city_name} (${selectedAirport.iata})`
-                : value}
+              {selectedAirport?.name} ({selectedAirport?.iata})
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -79,14 +61,14 @@ export function AirportSelect({
       <PopoverContent className="w-[400px] p-0">
         <Command>
           <CommandInput placeholder="Search airports..." />
-          <CommandEmpty>No airport found.</CommandEmpty>
+          <CommandEmpty>No airports found.</CommandEmpty>
           <CommandGroup className="max-h-[300px] overflow-y-auto">
-            {airports.map((airport) => (
+            {filteredAirports.map((airport) => (
               <CommandItem
                 key={airport.iata}
-                value={`${airport.city_name} ${airport.iata} ${airport.country}`}
-                onSelect={() => {
-                  onChange(airport.iata);
+                value={airport.iata}
+                onSelect={(currentValue) => {
+                  onChange(currentValue === value ? "" : currentValue);
                   setOpen(false);
                 }}
               >
@@ -96,14 +78,10 @@ export function AirportSelect({
                     value === airport.iata ? "opacity-100" : "opacity-0"
                   )}
                 />
-                <div className="flex flex-col">
-                  <span>
-                    {airport.city_name} ({airport.iata})
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {airport.country}
-                  </span>
-                </div>
+                {airport.name} ({airport.iata})
+                <span className="ml-2 text-muted-foreground">
+                  {airport.city}, {airport.country}
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>

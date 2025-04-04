@@ -48,31 +48,6 @@ const sqlite = new Database(path.join(process.cwd(), "routes.db"), {
 // Enable foreign keys
 sqlite.pragma("foreign_keys = ON");
 
-// Create tables if they don't exist
-sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS pilots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    home_base TEXT NOT NULL,
-    current_location TEXT NOT NULL,
-    preferred_airline TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS schedules (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pilot_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    start_location TEXT NOT NULL,
-    end_location TEXT NOT NULL,
-    duration_days INTEGER NOT NULL,
-    haul_preferences TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`);
-
 // Create drizzle database instance
 export const db = drizzle(sqlite, { schema });
 
@@ -80,15 +55,18 @@ export const db = drizzle(sqlite, { schema });
 export const rawDb = sqlite;
 
 // Helper function to run queries with proper error handling
-export function query<T = any>(sql: string, params: any[] = []): T[] {
+export function query(sql: string, params: any[] = []) {
   try {
     const stmt = sqlite.prepare(sql);
-    return stmt.all(params) as T[];
+    return stmt.all(params);
   } catch (error) {
     console.error("Database query error:", error);
     throw error;
   }
 }
+
+// Re-export schema types
+export * from './schema';
 
 // Get all routes with details (paginated)
 export async function getRoutes(

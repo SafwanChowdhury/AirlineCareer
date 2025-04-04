@@ -35,37 +35,50 @@ export interface FlightHistoryWithRoute extends FlightHistory {
   route: RouteDetail;
 }
 
-// API request types
-export interface CreatePilotRequest {
+// Request types
+export type CreatePilotRequest = {
   name: string;
   homeBase: string;
   currentLocation: string;
   preferredAirline?: string;
-}
+};
 
-export interface UpdatePilotRequest {
-  name?: string;
-  homeBase?: string;
-  currentLocation?: string;
-  preferredAirline?: string;
-}
+export type UpdatePilotRequest = Partial<CreatePilotRequest>;
 
-export interface CreateScheduleRequest {
+export type CreateScheduleRequest = {
   pilotId: number;
   name: string;
   startLocation: string;
   endLocation: string;
   durationDays: number;
   haulPreferences?: string;
-}
+};
 
-export interface AddFlightToScheduleRequest {
+export type UpdateScheduleRequest = Partial<CreateScheduleRequest>;
+
+export type CreateFlightRequest = {
   scheduleId: number;
   routeId: number;
   sequenceOrder: number;
   departureTime: string;
   arrivalTime: string;
-}
+};
+
+export type UpdateFlightRequest = {
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+};
+
+// Response types
+export type FlightHistoryStats = {
+  totalFlights: number;
+  totalMinutes: number;
+  totalHours: number;
+  airportsVisited: number;
+  airlinesFlown: number;
+};
+
+export type ScheduledFlightWithRoute = ScheduledFlight & RouteDetail;
+export type FlightHistoryWithRoute = FlightHistory & RouteDetail;
 
 // Component prop types
 export interface SelectOption {
@@ -89,18 +102,12 @@ export interface AirportSelectProps {
 }
 
 // Context types
-export interface PilotContextType {
-  currentPilot: Pilot | null;
-  setCurrentPilot: (pilot: Pilot | null) => void;
-  loading: boolean;
-  error: string | null;
-}
-
-export interface CareerContextType {
+export interface PilotContextValue {
   pilot: Pilot | null;
-  schedule: Schedule | null;
+  currentSchedule: Schedule | null;
+  pilotStats: FlightHistoryStats | null;
   setPilot: (pilot: Pilot | null) => void;
-  setSchedule: (schedule: Schedule | null) => void;
+  setCurrentSchedule: (schedule: Schedule | null) => void;
   loading: boolean;
   error: string | null;
 }
@@ -109,11 +116,12 @@ export interface CareerContextType {
 export type NewSchedule = Omit<Schedule, "id" | "createdAt" | "updatedAt">;
 export type NewPilot = Omit<Pilot, "id" | "createdAt" | "updatedAt">;
 
-export interface FlightHistoryStats {
-  totalFlights: number;
-  totalHours: number;
-  airportsVisited: number;
-  airlinesFlown: number;
+export interface RouteFilters {
+  airline?: string;
+  departure?: string;
+  arrival?: string;
+  country?: string;
+  maxDuration?: number;
 }
 
 export interface RouteDetails {
@@ -128,11 +136,4 @@ export interface RouteDetails {
   duration_min: number;
   airline_iata: string;
   airline_name: string;
-}
-
-export interface ScheduledFlightWithRoute extends ScheduledFlight, RouteDetails {
-  schedule_name?: string;
-  pilot_id: number;
-}
-
-export interface FlightHistoryWithRoute extends FlightHistory, RouteDetails {} 
+} 

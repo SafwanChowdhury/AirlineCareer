@@ -3,8 +3,9 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
-import { PilotProvider } from "@/lib/contexts/pilot-context";
+import { PilotProvider } from "@/lib/contexts/PilotContext";
 import { PilotSelect } from "@/components/career/PilotSelect";
+import { ErrorBoundary } from "@/components/error-boundary/ErrorBoundary";
 import Link from "next/link";
 import { Plane, Map, Calendar, User } from "lucide-react";
 
@@ -23,53 +24,36 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <PilotProvider>
-          <nav className="bg-slate-900 text-white shadow-lg">
-            <div className="container mx-auto px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-8">
-                  <Link
-                    href="/"
-                    className="flex items-center space-x-2 hover:text-blue-400 transition-colors"
-                  >
-                    <Plane className="h-6 w-6" />
-                    <h1 className="text-xl font-bold">
-                      Airline Routes Explorer
-                    </h1>
-                  </Link>
-                  <div className="hidden md:flex items-center space-x-6">
-                    <Link
-                      href="/routes"
-                      className="flex items-center space-x-2 hover:text-blue-400 transition-colors"
-                    >
-                      <Map className="h-5 w-5" />
-                      <span>Routes</span>
+        <ErrorBoundary>
+          <PilotProvider>
+            <div className="min-h-screen bg-background">
+              <header className="border-b">
+                <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+                  <nav className="flex items-center space-x-6">
+                    <Link href="/" className="font-semibold text-lg">
+                      Routes Browser
                     </Link>
-                    <Link
-                      href="/career"
-                      className="flex items-center space-x-2 hover:text-blue-400 transition-colors"
-                    >
-                      <Calendar className="h-5 w-5" />
-                      <span>Career</span>
+                    <Link href="/routes" className="flex items-center gap-2">
+                      <Map className="w-4 h-4" />
+                      Routes
                     </Link>
-                    <Link
-                      href="/profile"
-                      className="flex items-center space-x-2 hover:text-blue-400 transition-colors"
-                    >
-                      <User className="h-5 w-5" />
-                      <span>Profile</span>
+                    <Link href="/career" className="flex items-center gap-2">
+                      <Plane className="w-4 h-4" />
+                      Career
                     </Link>
+                  </nav>
+                  <div className="flex items-center space-x-4">
+                    <PilotSelect />
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <PilotSelect />
-                </div>
-              </div>
+              </header>
+              <main>
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </main>
             </div>
-          </nav>
-          <main className="container mx-auto px-4 py-8">{children}</main>
-          <Toaster />
-        </PilotProvider>
+            <Toaster />
+          </PilotProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

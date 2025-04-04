@@ -1,93 +1,48 @@
-import { NextResponse } from 'next/server';
-import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
-import { pilots } from "@/lib/schema";
-import { UpdatePilotRequest, Pilot } from "@/lib/types";
-import { z } from "zod";
-
-const pilotUpdateSchema = z.object({
-  name: z.string().optional(),
-  homeBase: z.string().optional(),
-  currentLocation: z.string().optional(),
-  preferredAirline: z.string().optional(),
-});
+import { NextRequest } from 'next/server';
+import { getPilotById, updatePilot } from '@/lib/career-db';
+import { handleApiError, successResponse, validateId, validateParams, ApiError } from '@/lib/api-utils';
 
 export async function GET(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse<Pilot | { error: string }>> {
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const pilotId = parseInt(context.params.id, 10);
+    const pilotId = validateId(params.id);
+    const pilot = await getPilotById(pilotId);
     
-    if (isNaN(pilotId)) {
-      return NextResponse.json(
-        { error: "Invalid pilot ID" },
-        { status: 400 }
-      );
+    if (!pilot) {
+      throw new ApiError('Pilot not found', 404);
     }
-
-    const pilot = await db
-      .select()
-      .from(pilots)
-      .where(eq(pilots.id, pilotId))
-      .limit(1);
-
-    if (!pilot || pilot.length === 0) {
-      return NextResponse.json(
-        { error: "Pilot not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(pilot[0]);
-  } catch (err) {
-    console.error("Error fetching pilot:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    
+    return successResponse(pilot);
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
-export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse<Pilot | { error: string, details?: z.ZodError['errors'] }>> {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const pilotId = parseInt(context.params.id, 10);
-    const body = await request.json();
-    const validatedData = pilotUpdateSchema.parse(body) as UpdatePilotRequest;
-
-    const [updatedPilot] = await db
-      .update(pilots)
-      .set({
-        ...validatedData,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(pilots.id, pilotId))
-      .returning();
-
-    if (!updatedPilot) {
-      return NextResponse.json(
-        { error: "Pilot not found" },
-        { status: 404 }
-      );
+    const pilotId = validateId(params.id);
+    const data = await request.json();
+    
+    validateParams(data, ['name', 'homeBase', 'currentLocation']);
+    
+    const pilot = await getPilotById(pilotId);
+    if (!pilot) {
+      throw new ApiError('Pilot not found', 404);
     }
-
-    return NextResponse.json(updatedPilot);
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid input data", details: err.errors },
-        { status: 400 }
-      );
-    }
-
-    console.error("Error updating pilot:", err);
-    return NextResponse.json(
-      { error: "Failed to update pilot" },
-      { status: 500 }
-    );
+    
+    const updatedPilot = await updatePilot(pilotId, {
+      ...data,
+      updatedAt: new Date().toISOString()
+    });
+    
+    return successResponse(updatedPilot);
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 

@@ -1,182 +1,148 @@
-import { query } from './db';
+import { db } from './db';
+import { eq, and, sql } from 'drizzle-orm';
+import { routeDetails } from './schema';
+import type { RouteDetail } from './types';
 
-interface HaulPreferences {
-  shortHaul: number;
-  mediumHaul: number;
-  longHaul: number;
+interface GenerateScheduleOptions {
+  startLocation: string;
+  endLocation: string;
+  durationDays: number;
+  haulPreferences?: 'short' | 'medium' | 'long' | 'any';
+  preferredAirline?: string;
+  maxLayoverHours?: number;
 }
 
-interface RouteWithDetails {
-  route_id: number;
-  departure_iata: string;
-  arrival_iata: string;
-  airline_iata: string;
-  duration_min: number;
+interface RouteWithScore {
+  route: RouteDetail;
+  score: number;
 }
 
-interface GeneratedFlight {
-  route_id: number;
-  departure_time: string;
-  arrival_time: string;
+const HAUL_TYPES = {
+  short: { min: 0, max: 180 }, // 0-3 hours
+  medium: { min: 180, max: 360 }, // 3-6 hours
+  long: { min: 360, max: Infinity } // 6+ hours
+};
+
+export async function generateSchedule(options: GenerateScheduleOptions): Promise<RouteDetail[]> {
+  const {
+    startLocation,
+    endLocation,
+    durationDays,
+    haulPreferences = 'any',
+    preferredAirline,
+    maxLayoverHours = 4
+  } = options;
+
+  // Calculate time constraints
+  const totalMinutesAvailable = durationDays * 24 * 60;
+  const maxLayoverMinutes = maxLayoverHours * 60;
+
+  // Get all possible routes from start location
+  const possibleRoutes = await findPossibleRoutes(
+    startLocation,
+    endLocation,
+    haulPreferences,
+    preferredAirline
+  );
+
+  // Score and sort routes based on preferences
+  const scoredRoutes = scoreRoutes(possibleRoutes, {
+    haulPreferences,
+    preferredAirline
+  });
+
+  // Generate optimal schedule
+  return optimizeSchedule(
+    scoredRoutes,
+    totalMinutesAvailable,
+    maxLayoverMinutes
+  );
 }
 
-const TURNAROUND_TIME_MIN = 60; // 1 hour turnaround time
-const SHORT_HAUL_MAX_MIN = 180; // 3 hours
-const MEDIUM_HAUL_MAX_MIN = 360; // 6 hours
-
-function getHaulType(durationMin: number): 'short' | 'medium' | 'long' {
-  if (durationMin <= SHORT_HAUL_MAX_MIN) return 'short';
-  if (durationMin <= MEDIUM_HAUL_MAX_MIN) return 'medium';
-  return 'long';
-}
-
-async function getAvailableRoutes(
-  departureIata: string,
-  airline?: string
-): Promise<RouteWithDetails[]> {
-  let sql = `
-    SELECT route_id, departure_iata, arrival_iata, airline_iata, duration_min
-    FROM route_details
-    WHERE departure_iata = ?
-  `;
-  const params: (string)[] = [departureIata];
-
-  if (airline) {
-    sql += ' AND airline_iata = ?';
-    params.push(airline);
-  }
-
-  return query(sql, params);
-}
-
-function selectRouteBasedOnPreferences(
-  routes: RouteWithDetails[],
-  preferences: HaulPreferences,
-  currentHaulType: 'short' | 'medium' | 'long',
-  homeBase: string,
-  currentLocation: string,
-  remainingTime: number
-): RouteWithDetails | null {
-  // If we're on a long haul aircraft and not at home base,
-  // we can only do another long haul flight
-  if (currentHaulType === 'long' && currentLocation !== homeBase) {
-    const longHaulRoutes = routes.filter(r => getHaulType(r.duration_min) === 'long');
-    return longHaulRoutes.length > 0 ? 
-      longHaulRoutes[Math.floor(Math.random() * longHaulRoutes.length)] : null;
-  }
-
-  // Group routes by haul type
-  const routesByType = {
-    short: routes.filter(r => getHaulType(r.duration_min) === 'short'),
-    medium: routes.filter(r => getHaulType(r.duration_min) === 'medium'),
-    long: routes.filter(r => getHaulType(r.duration_min) === 'long')
-  };
-
-  // If at home base, we can switch aircraft types
-  if (currentLocation === homeBase) {
-    // Calculate probability for each haul type
-    const total = preferences.shortHaul + preferences.mediumHaul + preferences.longHaul;
-    const rand = Math.random() * total;
-    
-    let selectedRoutes: RouteWithDetails[];
-    if (rand < preferences.shortHaul) {
-      selectedRoutes = routesByType.short;
-    } else if (rand < preferences.shortHaul + preferences.mediumHaul) {
-      selectedRoutes = routesByType.medium;
-    } else {
-      selectedRoutes = routesByType.long;
-    }
-
-    return selectedRoutes.length > 0 ? 
-      selectedRoutes[Math.floor(Math.random() * selectedRoutes.length)] : null;
-  }
-
-  // If we're on short/medium haul aircraft, we can do either
-  if (currentHaulType === 'short' || currentHaulType === 'medium') {
-    const availableRoutes = [...routesByType.short, ...routesByType.medium];
-    return availableRoutes.length > 0 ?
-      availableRoutes[Math.floor(Math.random() * availableRoutes.length)] : null;
-  }
-
-  return null;
-}
-
-export async function generateSchedule(
+async function findPossibleRoutes(
   startLocation: string,
-  durationDays: number,
-  airline: string | undefined,
-  preferences: HaulPreferences,
-  homeBase: string
-): Promise<GeneratedFlight[]> {
-  const flights: GeneratedFlight[] = [];
-  let currentLocation = startLocation;
-  let currentTime = new Date();
-  let currentHaulType: 'short' | 'medium' | 'long' = 'short';
-  const endTime = new Date(currentTime.getTime() + durationDays * 24 * 60 * 60 * 1000);
+  endLocation: string,
+  haulPreference: string,
+  preferredAirline?: string
+): Promise<RouteDetail[]> {
+  let query = db
+    .select()
+    .from(routeDetails)
+    .where(eq(routeDetails.departureIata, startLocation));
 
-  while (currentTime < endTime) {
-    // Get available routes from current location
-    const routes = await getAvailableRoutes(currentLocation, airline);
-    if (routes.length === 0) {
-      throw new Error(`No routes available from ${currentLocation}`);
-    }
+  // Apply haul type filter
+  if (haulPreference !== 'any') {
+    const { min, max } = HAUL_TYPES[haulPreference as keyof typeof HAUL_TYPES];
+    query = query.where(
+      and(
+        sql`${routeDetails.durationMin} >= ${min}`,
+        sql`${routeDetails.durationMin} < ${max}`
+      )
+    );
+  }
 
-    // Calculate remaining time
-    const remainingTime = endTime.getTime() - currentTime.getTime();
-    const remainingHours = remainingTime / (60 * 60 * 1000);
+  // Apply airline preference
+  if (preferredAirline) {
+    query = query.where(eq(routeDetails.airlineIata, preferredAirline));
+  }
 
-    // If we're approaching the end time, try to find a route back to home base
-    if (remainingHours <= 12 && currentLocation !== homeBase) {
-      const routeToHome = routes.find(r => r.arrival_iata === homeBase);
-      if (routeToHome) {
-        const flight: GeneratedFlight = {
-          route_id: routeToHome.route_id,
-          departure_time: currentTime.toISOString(),
-          arrival_time: new Date(currentTime.getTime() + routeToHome.duration_min * 60 * 1000).toISOString()
-        };
-        flights.push(flight);
-        break;
+  return query;
+}
+
+function scoreRoutes(
+  routes: RouteDetail[],
+  preferences: { haulPreferences: string; preferredAirline?: string }
+): RouteWithScore[] {
+  return routes.map(route => {
+    let score = 0;
+
+    // Score based on haul type match
+    if (preferences.haulPreferences !== 'any') {
+      const { min, max } = HAUL_TYPES[preferences.haulPreferences as keyof typeof HAUL_TYPES];
+      if (route.durationMin >= min && route.durationMin < max) {
+        score += 2;
       }
     }
 
-    // Select next route based on preferences
-    const selectedRoute = selectRouteBasedOnPreferences(
-      routes,
-      preferences,
-      currentHaulType,
-      homeBase,
-      currentLocation,
-      remainingTime
+    // Score based on airline preference
+    if (preferences.preferredAirline && route.airlineIata === preferences.preferredAirline) {
+      score += 1;
+    }
+
+    return { route, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function optimizeSchedule(
+  scoredRoutes: RouteWithScore[],
+  totalMinutesAvailable: number,
+  maxLayoverMinutes: number
+): RouteDetail[] {
+  const schedule: RouteDetail[] = [];
+  let currentTime = 0;
+  let currentLocation = scoredRoutes[0].route.departureIata;
+
+  while (currentTime < totalMinutesAvailable && scoredRoutes.length > 0) {
+    // Find next best route from current location
+    const nextRouteIndex = scoredRoutes.findIndex(
+      ({ route }) => route.departureIata === currentLocation
     );
 
-    if (!selectedRoute) {
-      // If we can't find a suitable route, try to return to home base
-      const routeToHome = routes.find(r => r.arrival_iata === homeBase);
-      if (routeToHome) {
-        const flight: GeneratedFlight = {
-          route_id: routeToHome.route_id,
-          departure_time: currentTime.toISOString(),
-          arrival_time: new Date(currentTime.getTime() + routeToHome.duration_min * 60 * 1000).toISOString()
-        };
-        flights.push(flight);
-        break;
-      }
-      throw new Error(`No suitable routes found from ${currentLocation}`);
+    if (nextRouteIndex === -1) break;
+
+    const { route } = scoredRoutes[nextRouteIndex];
+    const flightTime = route.durationMin;
+    const layoverTime = Math.min(maxLayoverMinutes, 120); // Default 2-hour layover
+
+    if (currentTime + flightTime + layoverTime <= totalMinutesAvailable) {
+      schedule.push(route);
+      currentTime += flightTime + layoverTime;
+      currentLocation = route.arrivalIata;
+      scoredRoutes.splice(nextRouteIndex, 1);
+    } else {
+      break;
     }
-
-    // Add flight to schedule
-    const flight: GeneratedFlight = {
-      route_id: selectedRoute.route_id,
-      departure_time: currentTime.toISOString(),
-      arrival_time: new Date(currentTime.getTime() + selectedRoute.duration_min * 60 * 1000).toISOString()
-    };
-    flights.push(flight);
-
-    // Update current location and time
-    currentLocation = selectedRoute.arrival_iata;
-    currentTime = new Date(currentTime.getTime() + (selectedRoute.duration_min + TURNAROUND_TIME_MIN) * 60 * 1000);
-    currentHaulType = getHaulType(selectedRoute.duration_min);
   }
 
-  return flights;
+  return schedule;
 } 

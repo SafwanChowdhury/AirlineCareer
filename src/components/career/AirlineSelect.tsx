@@ -1,4 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -11,52 +14,25 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { AirlineSelectProps } from "@/lib/types";
+import { useAirlines, type Airline } from "@/lib/hooks/use-airline-data";
 
-interface Airline {
-  iata: string;
-  name: string;
+interface AirlineSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
 }
 
 export function AirlineSelect({
   value,
   onChange,
-  placeholder = "Select airline...",
-  disabled = false,
+  placeholder = "Select airline",
 }: AirlineSelectProps) {
   const [open, setOpen] = useState(false);
-  const [airlines, setAirlines] = useState<Airline[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data: airlines, isLoading } = useAirlines();
 
-  useEffect(() => {
-    async function fetchAirlines() {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch("/api/airlines");
-        if (!response.ok) {
-          throw new Error("Failed to fetch airlines");
-        }
-        const data = await response.json();
-        setAirlines(data);
-      } catch (error) {
-        console.error("Error fetching airlines:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to fetch airlines"
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAirlines();
-  }, []);
-
-  const selectedAirline = airlines.find((a) => a.iata === value);
+  const selectedAirline = airlines?.find(
+    (airline: Airline) => airline.iata === value
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -65,17 +41,12 @@ export function AirlineSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn(
-            "w-full justify-between",
-            disabled && "opacity-50 cursor-not-allowed"
-          )}
-          disabled={disabled}
+          className="w-full justify-between"
+          disabled={isLoading}
         >
           {value ? (
             <span>
-              {selectedAirline
-                ? `${selectedAirline.name} (${selectedAirline.iata})`
-                : value}
+              {selectedAirline?.name} ({selectedAirline?.iata})
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -86,35 +57,16 @@ export function AirlineSelect({
       <PopoverContent className="w-[400px] p-0">
         <Command>
           <CommandInput placeholder="Search airlines..." />
-          <CommandEmpty>
-            {loading ? "Loading..." : error || "No airline found."}
-          </CommandEmpty>
+          <CommandEmpty>No airlines found.</CommandEmpty>
           <CommandGroup className="max-h-[300px] overflow-y-auto">
-            <CommandItem
-              value="clear-selection"
-              onSelect={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              disabled={disabled}
-            >
-              <Check
-                className={cn(
-                  "mr-2 h-4 w-4",
-                  !value ? "opacity-100" : "opacity-0"
-                )}
-              />
-              <span className="text-muted-foreground">Clear selection</span>
-            </CommandItem>
-            {airlines.map((airline) => (
+            {(airlines ?? []).map((airline: Airline) => (
               <CommandItem
                 key={airline.iata}
-                value={`${airline.name} ${airline.iata}`}
-                onSelect={() => {
-                  onChange(airline.iata);
+                value={airline.iata}
+                onSelect={(currentValue) => {
+                  onChange(currentValue === value ? "" : currentValue);
                   setOpen(false);
                 }}
-                disabled={disabled}
               >
                 <Check
                   className={cn(
@@ -122,8 +74,9 @@ export function AirlineSelect({
                     value === airline.iata ? "opacity-100" : "opacity-0"
                   )}
                 />
-                <span>
-                  {airline.name} ({airline.iata})
+                {airline.name} ({airline.iata})
+                <span className="ml-2 text-muted-foreground">
+                  {airline.country}
                 </span>
               </CommandItem>
             ))}
