@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { usePilot } from "@/lib/contexts/pilot-context";
 import { PilotProfile } from "@/lib/types";
 import Link from "next/link";
@@ -56,6 +56,13 @@ export function PilotSelect() {
           ))}
         </SelectContent>
       </Select>
+      {pilotId && (
+        <Button variant="outline" size="icon" asChild>
+          <Link href={`/career/pilots/${pilotId}`}>
+            <Settings className="h-4 w-4" />
+          </Link>
+        </Button>
+      )}
       <Button variant="outline" size="icon" asChild>
         <Link href="/career/pilots/new">
           <Plus className="h-4 w-4" />
