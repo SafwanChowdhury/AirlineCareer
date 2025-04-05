@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "init-db": "node scripts/init-db.js",
+    "migrate": "ts-node src/lib/migrate-all.ts",
+    "sync-routes": "ts-node src/lib/sync-routes.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.6",
@@ -25,6 +28,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.41.0",
     "gel": "^2.0.2",
     "lucide-react": "^0.487.0",

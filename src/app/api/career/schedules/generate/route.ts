@@ -1,71 +1,53 @@
 import { NextRequest } from 'next/server';
 import { generateSchedule } from '@/lib/schedule-generator';
-import { createSchedule, addFlightToSchedule } from '@/lib/career-db';
+import { createSchedule, addFlightToSchedule, getPilotProfileById } from '@/lib/career-db';
 import { handleApiError, successResponse, validateParams, ApiError } from '@/lib/api-utils';
 import { z } from 'zod';
+import { NextResponse } from 'next/server';
 
 const scheduleRequestSchema = z.object({
-  pilotId: z.number(),
-  name: z.string(),
-  startLocation: z.string(),
-  endLocation: z.string(),
+  pilotId: z.number().positive('Pilot ID must be a positive number'),
+  name: z.string().min(1, 'Schedule name is required'),
+  startLocation: z.string().length(3, 'Start location must be a 3-letter IATA code'),
   durationDays: z.number().min(1).max(30),
   haulPreferences: z.enum(['short', 'medium', 'long', 'any']).optional(),
   preferredAirline: z.string().optional(),
   maxLayoverHours: z.number().min(1).max(12).optional()
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const data = await request.json();
-    const validated = scheduleRequestSchema.parse(data);
+    const { pilotId, name, startLocation, durationDays, haulPreferences } = await request.json();
 
-    // Generate route sequence
-    const routes = await generateSchedule({
-      startLocation: validated.startLocation,
-      endLocation: validated.endLocation,
-      durationDays: validated.durationDays,
-      haulPreferences: validated.haulPreferences,
-      preferredAirline: validated.preferredAirline,
-      maxLayoverHours: validated.maxLayoverHours
-    });
-
-    if (routes.length === 0) {
-      throw new ApiError('No valid routes found for the given criteria');
+    // Validate required fields
+    if (!pilotId || !name || !startLocation || !durationDays) {
+      throw new ApiError('Missing required fields', 400);
     }
 
-    // Create schedule
+    // Verify pilot exists
+    const pilot = await getPilotProfileById(pilotId);
+    if (!pilot) {
+      throw new ApiError('Pilot not found', 404);
+    }
+
+    // Create the schedule
     const schedule = await createSchedule({
-      pilotId: validated.pilotId,
-      name: validated.name,
-      startLocation: validated.startLocation,
-      endLocation: validated.endLocation,
-      durationDays: validated.durationDays,
-      haulPreferences: validated.haulPreferences
+      pilotId,
+      name,
+      startLocation,
+      durationDays,
+      haulPreferences
     });
 
-    // Calculate flight times and add flights to schedule
-    let currentTime = new Date();
-    const flights = await Promise.all(
-      routes.map(async (route, index) => {
-        const departureTime = new Date(currentTime);
-        const arrivalTime = new Date(currentTime.getTime() + route.durationMin * 60 * 1000);
-        
-        // Add 2 hours layover between flights
-        currentTime = new Date(arrivalTime.getTime() + 120 * 60 * 1000);
-
-        return addFlightToSchedule({
-          scheduleId: schedule.id,
-          routeId: route.routeId,
-          sequenceOrder: index,
-          departureTime: departureTime.toISOString(),
-          arrivalTime: arrivalTime.toISOString()
-        });
-      })
-    );
-
-    return successResponse({ schedule, flights });
+    return NextResponse.json(schedule);
   } catch (error) {
-    return handleApiError(error);
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    console.error('Error generating schedule:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate schedule' },
+      { status: 500 }
+    );
   }
 } 

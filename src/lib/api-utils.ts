@@ -7,56 +7,39 @@ export type ApiResponse<T> = {
 };
 
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 400
-  ) {
+  constructor(message: string, public status: number) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
 export function handleApiError(error: unknown) {
-  console.error('API Error:', error);
-  
   if (error instanceof ApiError) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: error.statusCode }
-    );
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
-
+  console.error('Unexpected error:', error);
   return NextResponse.json(
-    { success: false, error: 'Internal server error' },
+    { error: 'An unexpected error occurred' },
     { status: 500 }
   );
 }
 
-export function successResponse<T>(data: T) {
-  return NextResponse.json({ success: true, data });
+export function successResponse(data: any) {
+  return NextResponse.json(data);
 }
 
-export function validateParams(params: unknown, requiredFields: string[]) {
-  if (!params || typeof params !== 'object') {
-    throw new ApiError('Invalid parameters');
-  }
-
+export function validateParams(data: any, requiredFields: string[]) {
   for (const field of requiredFields) {
-    if (!(field in params)) {
-      throw new ApiError(`Missing required field: ${field}`);
+    if (!(field in data)) {
+      throw new ApiError(`Missing required field: ${field}`, 400);
     }
   }
 }
 
-export function validateId(id: string | undefined): number {
-  if (!id) {
-    throw new ApiError('ID is required');
-  }
-  
-  const numId = parseInt(id, 10);
+export function validateId(id: string | number): number {
+  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
   if (isNaN(numId)) {
-    throw new ApiError('Invalid ID format');
+    throw new ApiError('Invalid ID', 400);
   }
-  
   return numId;
 } 

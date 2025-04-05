@@ -1,6 +1,6 @@
 // src/app/api/routes/route.ts
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { routesDb } from "@/lib/db";
 import { and, like, or, eq, sql } from "drizzle-orm";
 import { routeDetails } from "@/lib/schema";
 
@@ -51,13 +51,13 @@ export async function GET(request: Request) {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
-    const [{ count }] = await db
+    const [{ count }] = await routesDb
       .select({ count: sql<number>`count(*)` })
       .from(routeDetails)
       .where(whereClause);
 
     // Get paginated results
-    const routes = await db
+    const routes = await routesDb
       .select()
       .from(routeDetails)
       .where(whereClause)

@@ -32,7 +32,6 @@ import { usePilot } from "@/lib/contexts/pilot-context";
 interface FormData {
   name: string;
   startLocation: string;
-  endLocation: string;
   durationDays: number;
   haulPreferences: string;
 }
@@ -60,7 +59,6 @@ export default function ScheduleDetailsPage({
           setFormData({
             name: data.name,
             startLocation: data.startLocation,
-            endLocation: data.endLocation,
             durationDays: data.durationDays,
             haulPreferences: data.haulPreferences,
           });
@@ -244,20 +242,6 @@ export default function ScheduleDetailsPage({
               </div>
 
               <div>
-                <Label htmlFor="endLocation">End Location (IATA Code)</Label>
-                <Input
-                  id="endLocation"
-                  value={formData.endLocation}
-                  onChange={(e) =>
-                    handleChange("endLocation", e.target.value.toUpperCase())
-                  }
-                  placeholder="e.g. JFK"
-                  maxLength={3}
-                  required
-                />
-              </div>
-
-              <div>
                 <Label htmlFor="durationDays">Duration (Days)</Label>
                 <Input
                   id="durationDays"
@@ -310,10 +294,6 @@ export default function ScheduleDetailsPage({
               <div>
                 <Label>Start Location</Label>
                 <p className="text-lg">{schedule.startLocation}</p>
-              </div>
-              <div>
-                <Label>End Location</Label>
-                <p className="text-lg">{schedule.endLocation}</p>
               </div>
               <div>
                 <Label>Duration</Label>

@@ -32,7 +32,12 @@ export function CountrySelect({ value, onChange }: CountrySelectProps) {
         const response = await fetch("/api/airports?type=countries");
         if (!response.ok) throw new Error("Failed to fetch countries");
         const data = await response.json();
-        setCountries(data);
+        console.log("Fetched countries data:", data);
+        if (Array.isArray(data)) {
+          setCountries(data);
+        } else {
+          console.error("Expected an array but received:", data);
+        }
       } catch (error) {
         console.error("Error fetching countries:", error);
       } finally {

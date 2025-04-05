@@ -3,7 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
-import { PilotProvider } from "@/lib/contexts/PilotContext";
+import { PilotProvider } from "@/lib/contexts/pilot-context";
 import { PilotSelect } from "@/components/career/PilotSelect";
 import { ErrorBoundary } from "@/components/error-boundary/ErrorBoundary";
 import Link from "next/link";

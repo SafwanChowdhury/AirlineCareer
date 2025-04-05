@@ -15,24 +15,83 @@ const PilotContext = createContext<PilotContextType>({
   setPilotId: () => {},
 });
 
-export function PilotProvider({ children }: { children: React.ReactNode }) {
-  const [pilotId, setPilotId] = useState<number | null>(1); // Default to pilot ID 1 for now
-  const [pilot, setPilot] = useState<PilotProfile | null>(null);
+const STORAGE_KEY = "selectedPilotId";
 
+export function PilotProvider({ children }: { children: React.ReactNode }) {
+  // Initialize pilotId from localStorage on client
+  const [pilotId, setPilotIdState] = useState<number | null>(null);
+  const [pilot, setPilot] = useState<PilotProfile | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize from localStorage on mount
   useEffect(() => {
-    if (pilotId) {
+    try {
+      const storedId = localStorage.getItem(STORAGE_KEY);
+      if (storedId) {
+        const parsedId = parseInt(storedId, 10);
+        if (!isNaN(parsedId) && parsedId > 0) {
+          console.log(
+            `[pilot-context] Initializing from localStorage: ID ${parsedId}`
+          );
+          setPilotIdState(parsedId);
+        }
+      }
+    } catch (error) {
+      console.error("[pilot-context] Error loading from localStorage:", error);
+    } finally {
+      setIsInitialized(true);
+    }
+  }, []);
+
+  // Function to update pilotId in state and localStorage
+  const setPilotId = (id: number) => {
+    console.log(`[pilot-context] Setting pilot ID: ${id}`);
+    setPilotIdState(id);
+
+    // Persist to localStorage
+    try {
+      localStorage.setItem(STORAGE_KEY, id.toString());
+    } catch (error) {
+      console.error("[pilot-context] Error saving to localStorage:", error);
+    }
+  };
+
+  // Fetch pilot data when pilotId changes
+  useEffect(() => {
+    if (!isInitialized) {
+      return; // Skip the initial render before localStorage is loaded
+    }
+
+    if (pilotId && pilotId > 0) {
+      console.log(`[pilot-context] Fetching pilot with ID: ${pilotId}`);
+
       fetch(`/api/career/pilots/${pilotId}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`API response error: ${res.status}`);
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (!data.error) {
-            setPilot(data);
+          if (data.success) {
+            console.log(`[pilot-context] Pilot data loaded:`, data.data);
+            setPilot(data.data);
+          } else {
+            console.error(`[pilot-context] Error loading pilot:`, data.error);
+            setPilot(null);
           }
         })
         .catch((error) => {
-          console.error("Error fetching pilot profile:", error);
+          console.error(`[pilot-context] Error fetching pilot profile:`, error);
+          setPilot(null);
         });
+    } else {
+      console.log(
+        `[pilot-context] No valid pilotId (${pilotId}), setting pilot to null`
+      );
+      setPilot(null);
     }
-  }, [pilotId]);
+  }, [pilotId, isInitialized]);
 
   return (
     <PilotContext.Provider value={{ pilotId, pilot, setPilotId }}>
@@ -42,9 +101,5 @@ export function PilotProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function usePilot() {
-  const context = useContext(PilotContext);
-  if (!context) {
-    throw new Error("usePilot must be used within a PilotProvider");
-  }
-  return context;
+  return useContext(PilotContext);
 }

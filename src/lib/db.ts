@@ -3,7 +3,8 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as path from "path";
-import * as schema from "./schema";
+import * as routesSchema from "./routes-schema";
+import * as careerSchema from "./career-schema";
 
 interface RouteFilters {
   airline?: string;
@@ -39,34 +40,40 @@ interface Airport {
   country: string;
 }
 
-// Initialize the database connection
-const sqlite = new Database(path.join(process.cwd(), "routes.db"), {
+// Initialize the routes database connection
+const routesSqlite = new Database(path.join(process.cwd(), "routes.db"), {
   readonly: false,
   fileMustExist: false, // Allow creating the database if it doesn't exist
 });
 
-// Enable foreign keys
-sqlite.pragma("foreign_keys = ON");
+// Initialize the career database connection
+const careerSqlite = new Database(path.join(process.cwd(), "career.db"), {
+  readonly: false,
+  fileMustExist: false, // Allow creating the database if it doesn't exist
+});
 
-// Create drizzle database instance
-export const db = drizzle(sqlite, { schema });
+// Enable foreign keys for both databases
+routesSqlite.pragma("foreign_keys = ON");
+careerSqlite.pragma("foreign_keys = ON");
 
-// Export the raw sqlite instance for migrations
-export const rawDb = sqlite;
+// Create drizzle database instances with appropriate schemas
+export const db = drizzle(careerSqlite, { schema: careerSchema });
+export const routesDb = drizzle(routesSqlite, { schema: routesSchema });
 
-// Helper function to run queries with proper error handling
+// Export the raw sqlite instances for migrations
+export const rawRoutesDb = routesSqlite;
+export const rawCareerDb = careerSqlite;
+
+// Helper function to run queries with proper error handling on the routes database
 export function query(sql: string, params: any[] = []) {
   try {
-    const stmt = sqlite.prepare(sql);
+    const stmt = routesSqlite.prepare(sql);
     return stmt.all(params);
   } catch (error) {
     console.error("Database query error:", error);
     throw error;
   }
 }
-
-// Re-export schema types
-export * from './schema';
 
 // Get all routes with details (paginated)
 export async function getRoutes(
@@ -191,6 +198,7 @@ export async function getCountries(): Promise<string[]> {
     WHERE country != ''
     ORDER BY country
   `);
+  console.log('Database query results:', results);
   return results.map(r => r.country);
 }
 
@@ -220,8 +228,12 @@ export async function getRouteById(id: number): Promise<Route | undefined> {
 export async function getMaxDuration(): Promise<number> {
   const result = await query<{ max_duration: number }>(`
     SELECT MAX(duration_min) as max_duration
-    FROM routes
+    FROM route_details
   `);
   
   return result[0]?.max_duration || 0;
 }
+
+// Re-export schema types for convenience
+export * from './routes-schema';
+export * from './career-schema';

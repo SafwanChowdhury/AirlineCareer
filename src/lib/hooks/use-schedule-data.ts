@@ -20,18 +20,36 @@ export function useScheduleFlights(scheduleId: number | null) {
 }
 
 export async function createSchedule(data: CreateScheduleRequest): Promise<Schedule> {
-  const response = await fetch('/api/career/schedules/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
+  console.log('[schedule-data] Creating schedule with data:', data);
+  
+  try {
+    const response = await fetch('/api/career/schedules/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
 
-  if (!response.ok) {
-    throw new Error('Failed to generate schedule');
+    const responseData = await response.json();
+    console.log('[schedule-data] Schedule API response:', responseData);
+    
+    if (!response.ok) {
+      // Try to extract the error message from the response
+      const errorMessage = responseData.error || 'Failed to generate schedule';
+      console.error('[schedule-data] API error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Handle the success response format
+    if (responseData.success && responseData.data) {
+      return responseData.data.schedule;
+    } else {
+      console.error('[schedule-data] Unexpected API response format:', responseData);
+      throw new Error('Unexpected response format from server');
+    }
+  } catch (error) {
+    console.error('[schedule-data] Error in createSchedule:', error);
+    throw error;
   }
-
-  const json = await response.json();
-  return json.data;
 }
 
 export async function updateSchedule(id: number, data: UpdateScheduleRequest): Promise<Schedule> {

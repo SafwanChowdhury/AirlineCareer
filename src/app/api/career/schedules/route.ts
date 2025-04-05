@@ -13,7 +13,6 @@ import type { Schedule } from "@/lib/types";
 const scheduleInputSchema = z.object({
   name: z.string(),
   startLocation: z.string(),
-  endLocation: z.string(),
   durationDays: z.number(),
   haulPreferences: z.string(),
   pilotId: z.string()
@@ -43,7 +42,6 @@ export async function POST(request: Request) {
     const [newSchedule] = await db.insert(schedules).values({
       name: validatedData.name,
       startLocation: validatedData.startLocation,
-      endLocation: validatedData.endLocation,
       durationDays: validatedData.durationDays,
       haulPreferences: validatedData.haulPreferences,
       pilotId: validatedData.pilotId,

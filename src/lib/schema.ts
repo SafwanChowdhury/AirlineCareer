@@ -25,7 +25,6 @@ export const schedules = sqliteTable("schedules", {
   pilotId: integer("pilot_id").notNull().references(() => pilots.id),
   name: text("name").notNull(),
   startLocation: text("start_location").notNull(),
-  endLocation: text("end_location").notNull(),
   durationDays: integer("duration_days").notNull(),
   haulPreferences: text("haul_preferences"),
   createdAt: text("created_at").notNull(),
@@ -49,7 +48,7 @@ export const routeDetails = sqliteTable("route_details", {
 export const scheduledFlights = sqliteTable("scheduled_flights", {
   id: integer("id").primaryKey(),
   scheduleId: integer("schedule_id").notNull().references(() => schedules.id),
-  routeId: integer("route_id").notNull().references(() => routeDetails.id),
+  routeId: integer("route_id").notNull().references(() => routeDetails.routeId),
   sequenceOrder: integer("sequence_order").notNull(),
   departureTime: text("departure_time").notNull(),
   arrivalTime: text("arrival_time").notNull(),
@@ -59,7 +58,7 @@ export const scheduledFlights = sqliteTable("scheduled_flights", {
 export const flightHistory = sqliteTable("flight_history", {
   id: integer("id").primaryKey(),
   pilotId: integer("pilot_id").notNull().references(() => pilots.id),
-  routeId: integer("route_id").notNull().references(() => routeDetails.id),
+  routeId: integer("route_id").notNull().references(() => routeDetails.routeId),
   departureTime: text("departure_time").notNull(),
   arrivalTime: text("arrival_time").notNull(),
   departureLocation: text("departure_location").notNull(),

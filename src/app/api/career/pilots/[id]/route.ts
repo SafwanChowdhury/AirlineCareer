@@ -1,58 +1,67 @@
-import { NextRequest } from 'next/server';
-import { getPilotById, updatePilot } from '@/lib/career-db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getPilotProfileById, updatePilotLocation } from '@/lib/career-db';
 import { handleApiError, successResponse, validateId, validateParams, ApiError } from '@/lib/api-utils';
+import { db } from '@/lib/db';
+import { pilots } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 
 export async function GET(
-  _request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const pilotId = validateId(params.id);
-    const pilot = await getPilotById(pilotId);
-    
+    const pilot = await getPilotProfileById(parseInt(params.id));
     if (!pilot) {
       throw new ApiError('Pilot not found', 404);
     }
-    
-    return successResponse(pilot);
+    return NextResponse.json(pilot);
   } catch (error) {
-    return handleApiError(error);
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    console.error('Error fetching pilot:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch pilot' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
+export async function PUT(
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const pilotId = validateId(params.id);
-    const data = await request.json();
-    
-    validateParams(data, ['name', 'homeBase', 'currentLocation']);
-    
-    const pilot = await getPilotById(pilotId);
-    if (!pilot) {
-      throw new ApiError('Pilot not found', 404);
+    const { currentLocation } = await request.json();
+    if (!currentLocation) {
+      throw new ApiError('Current location is required', 400);
     }
-    
-    const updatedPilot = await updatePilot(pilotId, {
-      ...data,
-      updatedAt: new Date().toISOString()
-    });
-    
-    return successResponse(updatedPilot);
+
+    await updatePilotLocation(parseInt(params.id), currentLocation);
+    return NextResponse.json({ message: 'Pilot location updated successfully' });
   } catch (error) {
-    return handleApiError(error);
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    console.error('Error updating pilot:', error);
+    return NextResponse.json(
+      { error: 'Failed to update pilot' },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
-  request: Request,
+  _request: NextRequest,
   context: { params: { id: string } }
-): Promise<NextResponse<{ success: boolean } | { error: string }>> {
+) {
   try {
-    const pilotId = parseInt(context.params.id, 10);
-
+    // Ensure we await the params
+    const params = await Promise.resolve(context.params);
+    console.log("[pilot-api] Request params for DELETE:", params);
+    
+    const pilotId = validateId(params.id);
+    
     const [deletedPilot] = await db
       .delete(pilots)
       .where(eq(pilots.id, pilotId))
@@ -66,11 +75,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Error deleting pilot:", err);
-    return NextResponse.json(
-      { error: "Failed to delete pilot" },
-      { status: 500 }
-    );
+  } catch (error) {
+    return handleApiError(error);
   }
 } 

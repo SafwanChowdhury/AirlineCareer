@@ -36,49 +36,55 @@ export interface FlightHistoryWithRoute extends FlightHistory {
 }
 
 // Request types
-export type CreatePilotRequest = {
+export interface CreatePilotRequest {
   name: string;
   homeBase: string;
   currentLocation: string;
   preferredAirline?: string;
-};
+}
 
-export type UpdatePilotRequest = Partial<CreatePilotRequest>;
+export interface UpdatePilotRequest {
+  name?: string;
+  homeBase?: string;
+  currentLocation?: string;
+  preferredAirline?: string;
+}
 
-export type CreateScheduleRequest = {
+export interface CreateScheduleRequest {
   pilotId: number;
   name: string;
   startLocation: string;
-  endLocation: string;
   durationDays: number;
   haulPreferences?: string;
-};
+}
 
-export type UpdateScheduleRequest = Partial<CreateScheduleRequest>;
+export interface UpdateScheduleRequest {
+  name?: string;
+  startLocation?: string;
+  durationDays?: number;
+  haulPreferences?: string;
+}
 
-export type CreateFlightRequest = {
+export interface CreateFlightRequest {
   scheduleId: number;
   routeId: number;
   sequenceOrder: number;
   departureTime: string;
   arrivalTime: string;
-};
+}
 
-export type UpdateFlightRequest = {
+export interface UpdateFlightRequest {
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-};
+}
 
 // Response types
-export type FlightHistoryStats = {
+export interface FlightHistoryStats {
   totalFlights: number;
   totalMinutes: number;
   totalHours: number;
   airportsVisited: number;
   airlinesFlown: number;
-};
-
-export type ScheduledFlightWithRoute = ScheduledFlight & RouteDetail;
-export type FlightHistoryWithRoute = FlightHistory & RouteDetail;
+}
 
 // Component prop types
 export interface SelectOption {

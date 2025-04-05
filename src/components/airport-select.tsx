@@ -38,7 +38,12 @@ export function AirportSelect({
         const response = await fetch("/api/airports");
         if (!response.ok) throw new Error("Failed to fetch airports");
         const data = await response.json();
-        setAirports(data);
+        console.log("Fetched airports data:", data);
+        if (Array.isArray(data)) {
+          setAirports(data);
+        } else {
+          console.error("Expected an array but received:", data);
+        }
       } catch (error) {
         console.error("Error fetching airports:", error);
       } finally {

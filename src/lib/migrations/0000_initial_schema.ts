@@ -16,7 +16,6 @@ export const schedules = sqliteTable('schedules', {
   pilotId: integer('pilot_id').notNull().references(() => pilots.id),
   name: text('name').notNull(),
   startLocation: text('start_location').notNull(),
-  endLocation: text('end_location').notNull(),
   durationDays: integer('duration_days').notNull(),
   haulPreferences: text('haul_preferences'),
   createdAt: text('created_at').notNull(),

@@ -7,7 +7,6 @@ import { z } from "zod";
 const scheduleUpdateSchema = z.object({
   name: z.string(),
   startLocation: z.string(),
-  endLocation: z.string(),
   durationDays: z.number(),
   haulPreferences: z.string(),
 });

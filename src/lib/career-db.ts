@@ -3,16 +3,13 @@ import {
   pilots,
   schedules,
   scheduledFlights,
-  flightHistory,
-  routeDetails
-} from './schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+  flightHistory
+} from './career-schema';
+import { eq, desc, sql, asc } from 'drizzle-orm';
 import type {
   Pilot,
   Schedule,
   ScheduledFlight,
-  FlightHistory,
-  RouteDetail,
   CreatePilotRequest,
   CreateScheduleRequest,
   UpdatePilotRequest,
@@ -29,15 +26,6 @@ export async function initializeCareerTables(): Promise<void> {
   console.warn('initializeCareerTables is deprecated. Please use migrations instead.');
 }
 
-// Pilot Functions
-export async function getPilotById(id: number): Promise<Pilot | undefined> {
-  const result = await db
-    .select()
-    .from(pilots)
-    .where(eq(pilots.id, id));
-  return result[0];
-}
-
 export async function createPilot(data: CreatePilotRequest): Promise<Pilot> {
   const result = await db.insert(pilots).values({
     ...data,
@@ -48,41 +36,18 @@ export async function createPilot(data: CreatePilotRequest): Promise<Pilot> {
   return result[0];
 }
 
-export async function updatePilot(id: number, data: UpdatePilotRequest): Promise<Pilot> {
-  const result = await db
-    .update(pilots)
-    .set({
-      ...data,
+export async function getPilotProfileById(id: number): Promise<Pilot | null> {
+  const result = await db.select().from(pilots).where(eq(pilots.id, id));
+  return result[0] || null;
+}
+
+export async function updatePilotLocation(id: number, location: string): Promise<void> {
+  await db.update(pilots)
+    .set({ 
+      currentLocation: location,
       updatedAt: new Date().toISOString()
     })
-    .where(eq(pilots.id, id))
-    .returning();
-  
-  if (!result[0]) {
-    throw new ApiError('Pilot not found', 404);
-  }
-  
-  return result[0];
-}
-
-export async function deletePilot(id: number): Promise<void> {
-  const result = await db
-    .delete(pilots)
-    .where(eq(pilots.id, id))
-    .returning();
-  
-  if (!result[0]) {
-    throw new ApiError('Pilot not found', 404);
-  }
-}
-
-// Schedule Functions
-export async function getScheduleById(id: number): Promise<Schedule | undefined> {
-  const result = await db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.id, id));
-  return result[0];
+    .where(eq(pilots.id, id));
 }
 
 export async function createSchedule(data: CreateScheduleRequest): Promise<Schedule> {
@@ -95,94 +60,46 @@ export async function createSchedule(data: CreateScheduleRequest): Promise<Sched
   return result[0];
 }
 
-export async function updateSchedule(id: number, data: Partial<Schedule>): Promise<Schedule> {
-  const result = await db
-    .update(schedules)
-    .set({
-      ...data,
-      updatedAt: new Date().toISOString()
-    })
-    .where(eq(schedules.id, id))
-    .returning();
-  
-  if (!result[0]) {
-    throw new ApiError('Schedule not found', 404);
-  }
-  
-  return result[0];
+export async function getSchedulesByPilotId(pilotId: number): Promise<Schedule[]> {
+  return await db.select().from(schedules).where(eq(schedules.pilotId, pilotId));
 }
 
-export async function deleteSchedule(id: number): Promise<void> {
-  const result = await db
-    .delete(schedules)
-    .where(eq(schedules.id, id))
-    .returning();
-  
-  if (!result[0]) {
-    throw new ApiError('Schedule not found', 404);
-  }
-}
-
-// Flight Functions
-export async function getScheduledFlightById(id: number): Promise<ScheduledFlightWithRoute | undefined> {
-  const result = await db
-    .select({
-      ...scheduledFlights,
-      ...routeDetails
-    })
+export async function getNextFlightForPilot(pilotId: number): Promise<ScheduledFlight | null> {
+  const result = await db.select()
     .from(scheduledFlights)
-    .innerJoin(routeDetails, eq(scheduledFlights.routeId, routeDetails.routeId))
-    .where(eq(scheduledFlights.id, id));
+    .where(eq(scheduledFlights.scheduleId, pilotId))
+    .orderBy(asc(scheduledFlights.departureTime))
+    .limit(1);
   
-  return result[0];
+  return result[0] || null;
 }
 
-export async function updateFlightStatus(
-  id: number,
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-): Promise<ScheduledFlight> {
-  const result = await db
-    .update(scheduledFlights)
-    .set({ status })
-    .where(eq(scheduledFlights.id, id))
-    .returning();
-  
-  if (!result[0]) {
-    throw new ApiError('Flight not found', 404);
-  }
-  
-  return result[0];
-}
-
-// Flight History Functions
-export async function getFlightHistory(pilotId: number): Promise<FlightHistoryWithRoute[]> {
-  return db
-    .select({
-      ...flightHistory,
-      ...routeDetails
-    })
+export async function getFlightHistoryByPilotId(pilotId: number): Promise<typeof flightHistory.$inferSelect[]> {
+  return await db.select()
     .from(flightHistory)
-    .innerJoin(routeDetails, eq(flightHistory.routeId, routeDetails.routeId))
     .where(eq(flightHistory.pilotId, pilotId))
     .orderBy(desc(flightHistory.departureTime));
 }
 
 export async function getFlightHistoryStats(pilotId: number): Promise<FlightHistoryStats> {
-  const result = await db
-    .select({
-      totalFlights: sql<number>`COUNT(*)`,
-      totalMinutes: sql<number>`SUM(${flightHistory.flightDurationMin})`,
-      airportsVisited: sql<number>`COUNT(DISTINCT ${flightHistory.departureLocation}) + COUNT(DISTINCT ${flightHistory.arrivalLocation})`,
-      airlinesFlown: sql<number>`COUNT(DISTINCT ${flightHistory.airlineIata})`
-    })
-    .from(flightHistory)
-    .where(eq(flightHistory.pilotId, pilotId))
-    .groupBy(flightHistory.pilotId);
+  const result = await db.select({
+    totalFlights: sql<number>`count(*)`,
+    totalMinutes: sql<number>`sum(duration_min)`,
+    airportsVisited: sql<number>`count(distinct arrival_iata)`,
+    airlinesFlown: sql<number>`count(distinct airline_iata)`
+  })
+  .from(flightHistory)
+  .where(eq(flightHistory.pilotId, pilotId));
+  
+  const stats = result[0] || { 
+    totalFlights: 0, 
+    totalMinutes: 0, 
+    airportsVisited: 0, 
+    airlinesFlown: 0 
+  };
 
-  return result[0] || {
-    totalFlights: 0,
-    totalMinutes: 0,
-    airportsVisited: 0,
-    airlinesFlown: 0
+  return {
+    ...stats,
+    totalHours: Math.round(stats.totalMinutes / 60)
   };
 }

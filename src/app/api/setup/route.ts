@@ -1,67 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db, rawDb } from '@/lib/db';
+import { migrateAll } from '@/lib/migrate-all';
 
 export async function GET() {
   try {
-    console.log("Creating tables if they don't exist...");
+    console.log("Setting up databases...");
     
-    // Create pilots table
-    rawDb.exec(`
-      CREATE TABLE IF NOT EXISTS pilots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        home_base TEXT NOT NULL,
-        current_location TEXT NOT NULL,
-        preferred_airline TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `);
-
-    // Create pilot_profiles table
-    rawDb.exec(`
-      CREATE TABLE IF NOT EXISTS pilot_profiles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pilot_id INTEGER NOT NULL,
-        total_flights INTEGER DEFAULT 0,
-        total_hours INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (pilot_id) REFERENCES pilots(id)
-      )
-    `);
-
-    // Create schedules table
-    rawDb.exec(`
-      CREATE TABLE IF NOT EXISTS schedules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pilot_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        start_location TEXT NOT NULL,
-        end_location TEXT NOT NULL,
-        duration_days INTEGER NOT NULL,
-        haul_preferences TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `);
-
-    // Create route_details table
-    rawDb.exec(`
-      CREATE TABLE IF NOT EXISTS route_details (
-        route_id INTEGER PRIMARY KEY,
-        departure_iata TEXT NOT NULL,
-        departure_city TEXT NOT NULL,
-        departure_country TEXT NOT NULL,
-        arrival_iata TEXT NOT NULL,
-        arrival_city TEXT NOT NULL,
-        arrival_country TEXT NOT NULL,
-        distance_km INTEGER NOT NULL,
-        duration_min INTEGER NOT NULL,
-        airline_iata TEXT NOT NULL,
-        airline_name TEXT NOT NULL
-      )
-    `);
+    // Use the migration script to set up both databases
+    await migrateAll();
 
     console.log("Database setup complete!");
     return NextResponse.json({ message: "Database setup completed successfully" });
