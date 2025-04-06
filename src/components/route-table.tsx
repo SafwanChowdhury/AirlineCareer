@@ -21,6 +21,8 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { usePagination } from "@/lib/hooks/use-pagination";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface RouteDetails {
   route_id: number;
@@ -46,7 +48,6 @@ interface PaginationInfo {
 interface RouteTableProps {
   data: RouteDetails[];
   pagination?: PaginationInfo;
-  currentPage: number;
   onPageChange: (page: number) => void;
   loading: boolean;
 }
@@ -54,16 +55,37 @@ interface RouteTableProps {
 export function RouteTable({
   data,
   pagination,
-  currentPage,
   onPageChange,
   loading,
 }: RouteTableProps) {
   const [selectedRoute, setSelectedRoute] = useState<RouteDetails | null>(null);
 
+  // Initialize pagination with values from the API response
+  const paginationControl = usePagination({
+    initialPage: pagination?.currentPage || 1,
+    initialLimit: pagination?.limit || 10,
+    totalItems: pagination?.totalCount || 0,
+  });
+
+  // Update pagination when API response changes
+  if (pagination) {
+    paginationControl.updateFromResponse(pagination);
+  }
+
+  // Handle page changes
+  const handlePageChange = (action: "next" | "prev") => {
+    const newPage =
+      action === "next"
+        ? paginationControl.currentPage + 1
+        : paginationControl.currentPage - 1;
+
+    onPageChange(newPage);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <LoadingSpinner size={32} />
       </div>
     );
   }
@@ -99,9 +121,9 @@ export function RouteTable({
       <Table>
         <TableCaption>
           {pagination &&
-            `Showing ${
-              data.length
-            } of ${pagination.totalCount.toLocaleString()} routes`}
+            `Showing ${paginationControl.startItem}-${
+              paginationControl.endItem
+            } of ${paginationControl.totalItems.toLocaleString()} routes`}
         </TableCaption>
         <TableHeader>
           <TableRow>
@@ -221,17 +243,18 @@ export function RouteTable({
       </Table>
 
       {/* Pagination controls */}
-      {pagination && (
+      {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between py-4">
           <div className="text-sm text-gray-500">
-            Page {currentPage} of {pagination.totalPages}
+            Page {paginationControl.currentPage} of{" "}
+            {paginationControl.totalPages}
           </div>
           <div className="flex space-x-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
+              onClick={() => handlePageChange("prev")}
+              disabled={!paginationControl.canGoPrev || loading}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               Previous
@@ -239,8 +262,8 @@ export function RouteTable({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage >= pagination.totalPages}
+              onClick={() => handlePageChange("next")}
+              disabled={!paginationControl.canGoNext || loading}
             >
               Next
               <ChevronRight className="h-4 w-4 ml-1" />

@@ -1,7 +1,9 @@
 // src/components/duration-slider.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { useMaxDuration } from "@/lib/hooks/use-airport-data";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DurationSliderProps {
   value: number;
@@ -9,29 +11,16 @@ interface DurationSliderProps {
 }
 
 export function DurationSlider({ value, onChange }: DurationSliderProps) {
-  const [maxDuration, setMaxDuration] = useState<number>(1000);
-  const [loading, setLoading] = useState(true);
+  // Get max duration from our hook
+  const { data, isLoading, error } = useMaxDuration();
+  const maxDuration = data?.maxDuration || 1000;
 
+  // Initialize slider to max value if not already set
   useEffect(() => {
-    const fetchMaxDuration = async () => {
-      try {
-        const response = await fetch("/api/airports?type=maxDuration");
-        if (!response.ok) throw new Error("Failed to fetch max duration");
-        const data = await response.json();
-        setMaxDuration(data.maxDuration);
-        // Initialize slider to max value
-        if (value === 0) {
-          onChange(data.maxDuration);
-        }
-      } catch (error) {
-        console.error("Error fetching max duration:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMaxDuration();
-  }, [onChange, value]);
+    if (!isLoading && data && value === 0) {
+      onChange(data.maxDuration);
+    }
+  }, [isLoading, data, value, onChange]);
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -39,13 +28,36 @@ export function DurationSlider({ value, onChange }: DurationSliderProps) {
     return `${hours}h ${mins}m`;
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between">
+          <Label>Max Flight Duration</Label>
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <Skeleton className="h-5 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between">
+          <Label>Max Flight Duration</Label>
+          <span>Error loading durations</span>
+        </div>
+        <Slider disabled={true} value={[0]} min={0} max={100} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between">
         <Label>Max Flight Duration: {formatDuration(value)}</Label>
       </div>
       <Slider
-        disabled={loading}
         value={[value]}
         min={30}
         max={maxDuration}

@@ -1,7 +1,6 @@
-// src/app/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -17,102 +16,69 @@ import { AirportSelect } from "@/components/airport-select";
 import { CountrySelect } from "@/components/country-select";
 import { DurationSlider } from "@/components/duration-slider";
 import { RouteTable } from "@/components/route-table";
-import { RouteFilters } from "@/types";
 import { RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
-
-interface RoutesResponse {
-  data: any[];
-  pagination: {
-    totalCount: number;
-    currentPage: number;
-    totalPages: number;
-    limit: number;
-  };
-}
+import { useRoutesList } from "@/lib/hooks/use-route-data";
+import { useForm } from "@/lib/hooks/use-form";
+import { RouteFilters } from "@/types";
 
 export default function Home() {
-  // State for filters
-  const [filters, setFilters] = useState<RouteFilters>({
-    airline: "",
-    departure: "",
-    arrival: "",
-    country: "",
-    maxDuration: 0,
+  // Use our new hooks for routes list management with the form hook for filters
+  const {
+    items: routes,
+    isLoading,
+    error,
+    filters,
+    currentPage,
+    totalPages,
+    goToPage,
+  } = useRoutesList({
+    autoFetch: true,
+    paginationOptions: {
+      initialLimit: 10,
+    },
+    filterOptions: {
+      persistToUrl: true,
+    },
   });
 
-  // State for pagination
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // State for routes data
-  const [routesData, setRoutesData] = useState<RoutesResponse | null>(null);
-
-  // State for loading
-  const [loading, setLoading] = useState(false);
-
-  // Function to fetch routes
-  const fetchRoutes = async (page: number = 1) => {
-    setLoading(true);
-
-    try {
-      // Build query string from filters
-      const params = new URLSearchParams();
-      params.append("page", page.toString());
-      params.append("limit", "10");
-
-      if (filters.airline) params.append("airline", filters.airline);
-      if (filters.departure) params.append("departure", filters.departure);
-      if (filters.arrival) params.append("arrival", filters.arrival);
-      if (filters.country) params.append("country", filters.country);
-      if (filters.maxDuration)
-        params.append("maxDuration", filters.maxDuration.toString());
-
-      const response = await fetch(`/api/routes?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch routes");
-      }
-
-      const data = await response.json();
-      setRoutesData(data);
-      setCurrentPage(page);
-    } catch (error) {
-      console.error("Error fetching routes:", error);
-      toast.error("Failed to fetch routes");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle search button click
-  const handleSearch = () => {
-    setCurrentPage(1);
-    fetchRoutes(1);
-  };
-
-  // Handle reset filters
-  const handleReset = () => {
-    setFilters({
+  // Form for managing filter inputs
+  const form = useForm<RouteFilters>({
+    initialValues: {
       airline: "",
       departure: "",
       arrival: "",
       country: "",
       maxDuration: 0,
-    });
-    setCurrentPage(1);
-    fetchRoutes(1);
-  };
+    },
+    onSubmit: (values) => {
+      // Update filters
+      filters.setFilters(values);
+    },
+  });
 
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    fetchRoutes(page);
-  };
-
-  // Fetch routes on first load
+  // Handle errors
   useEffect(() => {
-    fetchRoutes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (error) {
+      toast.error("Failed to load routes: " + error.message);
+    }
+  }, [error]);
+
+  // Update form values when filters change
+  useEffect(() => {
+    form.setValues(filters.filters);
+  }, [filters.filters, form]);
+
+  // Handle search button click
+  const handleSearch = () => {
+    form.handleSubmit();
+  };
+
+  // Handle reset filters
+  const handleReset = () => {
+    form.resetForm();
+    filters.clearFilters();
+  };
 
   return (
     <main className="container mx-auto py-8">
@@ -129,10 +95,8 @@ export default function Home() {
             <div className="space-y-2">
               <Label htmlFor="departure">Departure Airport</Label>
               <AirportSelect
-                value={filters.departure || ""}
-                onChange={(value) =>
-                  setFilters({ ...filters, departure: value })
-                }
+                value={form.values.departure || ""}
+                onChange={(value) => form.setFieldValue("departure", value)}
                 placeholder="Select departure..."
               />
             </div>
@@ -140,8 +104,8 @@ export default function Home() {
             <div className="space-y-2">
               <Label htmlFor="arrival">Arrival Airport</Label>
               <AirportSelect
-                value={filters.arrival || ""}
-                onChange={(value) => setFilters({ ...filters, arrival: value })}
+                value={form.values.arrival || ""}
+                onChange={(value) => form.setFieldValue("arrival", value)}
                 placeholder="Select arrival..."
               />
             </div>
@@ -149,39 +113,41 @@ export default function Home() {
             <div className="space-y-2">
               <Label htmlFor="airline">Airline</Label>
               <AirlineSelect
-                value={filters.airline || ""}
-                onChange={(value) => setFilters({ ...filters, airline: value })}
+                value={form.values.airline || ""}
+                onChange={(value) => form.setFieldValue("airline", value)}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
               <CountrySelect
-                value={filters.country || ""}
-                onChange={(value) => setFilters({ ...filters, country: value })}
+                value={form.values.country || ""}
+                onChange={(value) => form.setFieldValue("country", value)}
               />
             </div>
 
             <div className="col-span-1 md:col-span-2 lg:col-span-4">
               <DurationSlider
-                value={filters.maxDuration || 0}
-                onChange={(value) =>
-                  setFilters({ ...filters, maxDuration: value })
-                }
+                value={form.values.maxDuration || 0}
+                onChange={(value) => form.setFieldValue("maxDuration", value)}
               />
             </div>
           </div>
         </CardContent>
 
         <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={handleReset}>
+          <Button
+            variant="outline"
+            onClick={handleReset}
+            disabled={!filters.hasActiveFilters || isLoading}
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Reset Filters
           </Button>
 
-          <Button onClick={handleSearch}>
+          <Button onClick={handleSearch} disabled={isLoading}>
             <Search className="h-4 w-4 mr-2" />
-            Search Routes
+            {isLoading ? "Searching..." : "Search Routes"}
           </Button>
         </CardFooter>
       </Card>
@@ -190,19 +156,27 @@ export default function Home() {
         <CardHeader>
           <CardTitle>Routes</CardTitle>
           <CardDescription>
-            {routesData?.pagination?.totalCount
-              ? `Found ${routesData.pagination.totalCount.toLocaleString()} routes matching your criteria`
+            {routes.length > 0
+              ? `Found ${routes.length} routes matching your criteria`
               : "No routes found"}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <RouteTable
-            data={routesData?.data || []}
-            pagination={routesData?.pagination}
-            currentPage={currentPage}
-            onPageChange={handlePageChange}
-            loading={loading}
+            data={routes}
+            pagination={
+              routes.length
+                ? {
+                    totalCount: routes.length,
+                    currentPage,
+                    totalPages,
+                    limit: 10,
+                  }
+                : undefined
+            }
+            onPageChange={goToPage}
+            loading={isLoading}
           />
         </CardContent>
       </Card>
