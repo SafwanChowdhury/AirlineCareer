@@ -4,7 +4,7 @@
  * This file contains all the type definitions for the application,
  * derived from database schemas and enhanced for API and UI usage.
  */
-import { InferModel } from "drizzle-orm";
+import { InferSelectModel } from "drizzle-orm";
 import { 
   pilots, 
   schedules, 
@@ -19,15 +19,15 @@ import {
 } from "./routes-schema";
 
 // Base types from schema - Career database
-export type Pilot = InferModel<typeof pilots>;
-export type Schedule = InferModel<typeof schedules>;
-export type ScheduledFlight = InferModel<typeof scheduledFlights>;
-export type FlightHistory = InferModel<typeof flightHistory>;
+export type Pilot = InferSelectModel<typeof pilots>;
+export type Schedule = InferSelectModel<typeof schedules>;
+export type ScheduledFlight = InferSelectModel<typeof scheduledFlights>;
+export type FlightHistory = InferSelectModel<typeof flightHistory>;
 
 // Base types from schema - Routes database
-export type Airline = InferModel<typeof airlines>;
-export type Airport = InferModel<typeof airports>;
-export type RouteDetail = InferModel<typeof routeDetails>;
+export type Airline = InferSelectModel<typeof airlines>;
+export type Airport = InferSelectModel<typeof airports>;
+export type RouteDetail = InferSelectModel<typeof routeDetails>;
 
 // Extended types for API responses
 export interface PilotWithStats extends Pilot {
@@ -40,19 +40,36 @@ export interface ScheduleWithFlights extends Schedule {
 }
 
 export interface ScheduledFlightWithRoute extends ScheduledFlight {
-  route: RouteDetail;
-  scheduleName?: string;
+  departure_city?: string;
+  departure_iata?: string;
+  arrival_city?: string;
+  arrival_iata?: string;
+  airline_name?: string;
+  airline_iata?: string;
+  distance_km?: number;
+  duration_min?: number;
 }
 
 export interface FlightHistoryWithRoute extends FlightHistory {
-  route: RouteDetail;
+  departure_city?: string;
+  arrival_city?: string;
+  airline_name?: string;
+}
+
+// Statistics interface
+export interface FlightHistoryStats {
+  totalFlights: number;
+  totalMinutes: number;
+  totalHours: number;
+  airportsVisited: number;
+  airlinesFlown: number;
 }
 
 // Request types
 export interface CreatePilotRequest {
   name: string;
   homeBase: string;
-  currentLocation: string;
+  currentLocation?: string;
   preferredAirline?: string;
 }
 

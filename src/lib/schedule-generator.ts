@@ -1,9 +1,17 @@
+// src/lib/schedule-generator.ts
+/**
+ * Schedule generator utility
+ * Creates flight schedules based on specified parameters
+ */
 import { routesDb } from './db';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, SQL } from 'drizzle-orm';
 import { routeDetails, airports } from './schema';
 import type { RouteDetail } from './types';
 
-interface GenerateScheduleOptions {
+/**
+ * Options for schedule generation
+ */
+export interface GenerateScheduleOptions {
   startLocation: string;
   endLocation?: string;
   durationDays: number;
@@ -12,34 +20,48 @@ interface GenerateScheduleOptions {
   maxLayoverHours?: number;
 }
 
+/**
+ * Route with scoring information for selection
+ */
 interface RouteWithScore {
   route: RouteDetail;
   score: number;
 }
 
+/**
+ * Flight distance categories
+ */
 const HAUL_TYPES = {
-  short: { min: 0, max: 180 }, // 0-3 hours
-  medium: { min: 180, max: 360 }, // 3-6 hours
+  short: { min: 0, max: 180 },      // 0-3 hours
+  medium: { min: 180, max: 360 },   // 3-6 hours
   long: { min: 360, max: Infinity } // 6+ hours
 };
 
+/**
+ * Generate a flight schedule based on provided options
+ * @param options Schedule generation options
+ * @returns Array of route details for the schedule
+ */
 export async function generateSchedule(options: GenerateScheduleOptions): Promise<RouteDetail[]> {
   console.log("[schedule-generator] Starting schedule generation with options:", options);
   
   const {
     startLocation,
-    endLocation = startLocation, // Default to returning to start location
     durationDays,
     haulPreferences = 'any',
     preferredAirline,
     maxLayoverHours = 4
   } = options;
 
+  // Store final destination (used for return trip)
+  const finalDestination = options.endLocation || startLocation;
+
   // Calculate time constraints
   const totalMinutesAvailable = durationDays * 24 * 60;
   const maxLayoverMinutes = maxLayoverHours * 60;
 
   console.log("[schedule-generator] Finding possible routes...");
+  
   // Get all possible routes from start location
   const outboundRoutes = await findPossibleRoutes(
     startLocation,
@@ -74,10 +96,10 @@ export async function generateSchedule(options: GenerateScheduleOptions): Promis
     );
 
     if (nextRouteIndex === -1) {
-      // Try to find a route back to start location
+      // Try to find a route back to final destination
       const returnRoutes = await findPossibleRoutes(
         currentLocation,
-        startLocation,
+        finalDestination,
         haulPreferences,
         preferredAirline
       );
@@ -103,10 +125,10 @@ export async function generateSchedule(options: GenerateScheduleOptions): Promis
       currentLocation = route.arrivalIata;
       scoredOutboundRoutes.splice(nextRouteIndex, 1);
     } else {
-      // Try to find a route back to start location
+      // Try to find a route back to final destination
       const returnRoutes = await findPossibleRoutes(
         currentLocation,
-        startLocation,
+        finalDestination,
         haulPreferences,
         preferredAirline
       );
@@ -127,6 +149,14 @@ export async function generateSchedule(options: GenerateScheduleOptions): Promis
   return schedule;
 }
 
+/**
+ * Find possible routes based on parameters
+ * @param startLocation Departure IATA code
+ * @param endLocation Arrival IATA code (optional)
+ * @param haulPreference Flight duration preference
+ * @param preferredAirline Preferred airline IATA code (optional)
+ * @returns Array of matching routes
+ */
 async function findPossibleRoutes(
   startLocation: string,
   endLocation: string | null,
@@ -145,7 +175,8 @@ async function findPossibleRoutes(
     return [];
   }
 
-  let conditions = [eq(routeDetails.departureIata, startLocation)];
+  // Create an array of all conditions
+  const conditions: SQL<unknown>[] = [eq(routeDetails.departureIata, startLocation)];
 
   // Add end location condition if specified
   if (endLocation) {
@@ -166,10 +197,10 @@ async function findPossibleRoutes(
   if (haulPreference !== 'any') {
     const { min, max } = HAUL_TYPES[haulPreference as keyof typeof HAUL_TYPES];
     conditions.push(
-      and(
-        sql`${routeDetails.durationMin} >= ${min}`,
-        sql`${routeDetails.durationMin} < ${max}`
-      )
+      sql`${routeDetails.durationMin} >= ${min}`
+    );
+    conditions.push(
+      sql`${routeDetails.durationMin} < ${max}`
     );
   }
 
@@ -178,14 +209,30 @@ async function findPossibleRoutes(
     conditions.push(eq(routeDetails.airlineIata, preferredAirline));
   }
 
-  const routes = await routesDb
-    .select()
-    .from(routeDetails)
-    .where(and(...conditions));
+  // Instead of using `and()`, which requires at least one condition,
+  // we'll build the query step by step
+  let routes: RouteDetail[] = [];
+  
+  try {
+    routes = await routesDb
+      .select()
+      .from(routeDetails)
+      .where(and(...conditions))
+      .limit(100);
+  } catch (error) {
+    console.error(`[schedule-generator] Error finding routes:`, error);
+    return [];
+  }
 
   return routes;
 }
 
+/**
+ * Score routes based on preferences
+ * @param routes Array of routes to score
+ * @param preferences User preferences
+ * @returns Array of routes with scores
+ */
 function scoreRoutes(
   routes: RouteDetail[],
   preferences: { haulPreferences: string; preferredAirline?: string }
@@ -208,4 +255,4 @@ function scoreRoutes(
 
     return { route, score };
   }).sort((a, b) => b.score - a.score);
-} 
+}
