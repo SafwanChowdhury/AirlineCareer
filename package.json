@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "init-db": "node scripts/init-db.js",
-    "migrate": "ts-node src/lib/migrate-all.ts",
+    "migrate": "node scripts/migrate.js",
     "sync-routes": "ts-node src/lib/sync-routes.ts"
   },
   "dependencies": {

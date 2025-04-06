@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
-import { migrateAll, migrateRoutesDb, migrateCareerDb } from '@/lib/migrate-all';
+import { migrateAll, migrateRoutesDb, migrateCareerDb } from '@/lib/migrate';
 
+/**
+ * API route for running database migrations
+ * Can be called with ?db=routes or ?db=career to migrate specific databases,
+ * or with no parameters to migrate all databases.
+ * 
+ * @route POST /api/migrate
+ * @param {Request} request - The incoming request
+ * @returns {NextResponse} JSON response indicating success or failure
+ */
 export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -24,4 +33,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
