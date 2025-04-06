@@ -18,14 +18,17 @@ export function FlightCard({
   onStatusChange,
   showActions = true,
 }: FlightCardProps) {
-  const departureTime = new Date(flight.departure_time);
-  const arrivalTime = new Date(flight.arrival_time);
-  const duration = flight.duration_min;
+  const departureTime = new Date(flight.departureTime || "");
+  const arrivalTime = new Date(flight.arrivalTime || "");
+  const duration = flight.duration_min || 0;
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
 
+  // Default the status to scheduled if somehow null/undefined
+  const status = flight.status || "scheduled";
+
   const statusVariants: Record<
-    ScheduledFlightWithRoute["status"],
+    "scheduled" | "in_progress" | "completed" | "cancelled",
     "default" | "secondary" | "outline" | "destructive"
   > = {
     scheduled: "secondary",
@@ -39,10 +42,12 @@ export function FlightCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-semibold">
-            {flight.airline_name} {flight.airline_iata}
+            {flight.airline_name || "Unknown"} {flight.airline_iata || ""}
           </CardTitle>
-          <Badge variant={statusVariants[flight.status]}>
-            {flight.status.replace("_", " ")}
+          <Badge
+            variant={statusVariants[status as keyof typeof statusVariants]}
+          >
+            {status.replace("_", " ")}
           </Badge>
         </div>
       </CardHeader>
@@ -50,13 +55,17 @@ export function FlightCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-muted-foreground">From</div>
-            <div className="font-medium">{flight.departure_city}</div>
-            <div className="text-sm">{flight.departure_iata}</div>
+            <div className="font-medium">
+              {flight.departure_city || "Unknown"}
+            </div>
+            <div className="text-sm">{flight.departure_iata || ""}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">To</div>
-            <div className="font-medium">{flight.arrival_city}</div>
-            <div className="text-sm">{flight.arrival_iata}</div>
+            <div className="font-medium">
+              {flight.arrival_city || "Unknown"}
+            </div>
+            <div className="text-sm">{flight.arrival_iata || ""}</div>
           </div>
         </div>
 
@@ -83,10 +92,10 @@ export function FlightCard({
 
         {showActions &&
           onStatusChange &&
-          flight.status !== "completed" &&
-          flight.status !== "cancelled" && (
+          status !== "completed" &&
+          status !== "cancelled" && (
             <div className="mt-4 space-x-2">
-              {flight.status === "scheduled" && (
+              {status === "scheduled" && (
                 <Button
                   variant="default"
                   size="sm"
@@ -95,7 +104,7 @@ export function FlightCard({
                   Start Flight
                 </Button>
               )}
-              {flight.status === "in_progress" && (
+              {status === "in_progress" && (
                 <Button
                   variant="default"
                   size="sm"

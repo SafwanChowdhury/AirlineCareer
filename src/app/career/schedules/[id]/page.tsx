@@ -26,8 +26,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Pencil, Trash2 } from "lucide-react";
-import { Schedule } from "@/lib/types";
 import { usePilot } from "@/lib/contexts/pilot-context";
+import { useSchedule } from "@/lib/contexts/schedule-context";
+import { useScheduleData, updateSchedule } from "@/lib/hooks/use-schedule";
 
 interface FormData {
   name: string;
@@ -43,54 +44,60 @@ export default function ScheduleDetailsPage({
 }) {
   const router = useRouter();
   const { pilotId } = usePilot();
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const { setScheduleId } = useSchedule();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<FormData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
+  // Use SWR hook for fetching schedule data
+  const scheduleId = parseInt(params.id, 10);
+  const {
+    data: schedule,
+    error,
+    isLoading,
+    mutate,
+  } = useScheduleData(scheduleId);
+
+  // Set schedule ID in context when loaded
   useEffect(() => {
-    if (!pilotId) return;
+    if (scheduleId) {
+      setScheduleId(scheduleId);
+    }
 
-    fetch(`/api/career/schedules/${params.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setSchedule(data);
-          setFormData({
-            name: data.name,
-            startLocation: data.startLocation,
-            durationDays: data.durationDays,
-            haulPreferences: data.haulPreferences,
-          });
-        }
-      })
-      .catch((error) => {
-        console.error("Error fetching schedule:", error);
-        toast.error("Failed to load schedule");
-      })
-      .finally(() => setIsLoading(false));
-  }, [params.id, pilotId]);
+    return () => {
+      // Clear schedule ID when navigating away
+      setScheduleId(null);
+    };
+  }, [scheduleId, setScheduleId]);
+
+  // Initialize form data when schedule data is loaded
+  useEffect(() => {
+    if (schedule) {
+      setFormData({
+        name: schedule.name,
+        startLocation: schedule.startLocation,
+        durationDays: schedule.durationDays,
+        haulPreferences: (schedule.haulPreferences as string) || "any",
+      });
+    }
+  }, [schedule]);
+
+  // Show error toast if API request fails
+  useEffect(() => {
+    if (error) {
+      console.error("Error fetching schedule:", error);
+      toast.error("Failed to load schedule");
+    }
+  }, [error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData) return;
 
     try {
-      const response = await fetch(`/api/career/schedules/${params.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const updatedSchedule = await updateSchedule(scheduleId, formData);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update schedule");
-      }
-
-      const updatedSchedule = await response.json();
-      setSchedule(updatedSchedule);
+      // Update local data
+      mutate(updatedSchedule);
       setIsEditing(false);
       toast.success("Schedule updated successfully");
     } catch (error) {
@@ -302,7 +309,7 @@ export default function ScheduleDetailsPage({
               <div>
                 <Label>Flight Length Preference</Label>
                 <p className="text-lg capitalize">
-                  {schedule.haulPreferences.replace("_", " ")}
+                  {(schedule.haulPreferences || "any").replace("_", " ")}
                 </p>
               </div>
             </div>

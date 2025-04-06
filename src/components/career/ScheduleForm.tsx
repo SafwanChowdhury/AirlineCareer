@@ -17,7 +17,7 @@ import { AirportSelect } from "./AirportSelect";
 import { AirlineSelect } from "./AirlineSelect";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { usePilot } from "@/lib/contexts/pilot-context";
-import { createSchedule } from "@/lib/hooks/use-schedule-data";
+import { createSchedule } from "@/lib/hooks/use-schedule";
 
 interface FormData {
   name: string;
@@ -44,7 +44,7 @@ const initialFormData: FormData = {
 
 export function ScheduleForm() {
   const router = useRouter();
-  const { pilotId, pilot } = usePilot();
+  const { pilotId } = usePilot();
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);

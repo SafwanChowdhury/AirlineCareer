@@ -6,10 +6,9 @@ import { Plane, MapPin, Building2, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
-  usePilotProfile,
-  usePilotStats,
   useScheduledFlights,
   updateFlightStatus,
+  useRevalidatePilotData,
 } from "@/lib/hooks/use-pilot";
 import { toast } from "sonner";
 import { ScheduledFlightWithRoute } from "@/lib/types";
@@ -67,13 +66,12 @@ function LoadingFlightCard() {
 }
 
 export default function CareerPage() {
-  const { pilotId } = usePilot();
+  const { pilotId, pilot, pilotStats: stats, loading } = usePilot();
+  const revalidatePilotData = useRevalidatePilotData();
 
-  const { pilot, isLoading: isLoadingPilot } = usePilotProfile(pilotId || 0);
-  const { stats, isLoading: isLoadingStats } = usePilotStats(pilotId || 0);
-  const { flights, isLoading: isLoadingFlights } = useScheduledFlights(
-    pilotId || 0
-  );
+  // Still use the dedicated hook for scheduled flights since it's not in the context
+  const { data: flights = [], isLoading: isLoadingFlights } =
+    useScheduledFlights(pilotId);
 
   const handleStatusChange = async (
     flightId: number,
@@ -81,6 +79,12 @@ export default function CareerPage() {
   ) => {
     try {
       await updateFlightStatus(flightId, status);
+
+      // Manually revalidate data after status change
+      if (pilotId) {
+        await revalidatePilotData(pilotId);
+      }
+
       toast.success("Flight Updated", {
         description: `Status changed to ${status.replace("_", " ")}`,
       });
@@ -106,6 +110,9 @@ export default function CareerPage() {
     );
   }
 
+  const isLoadingPilot = loading;
+  const isLoadingStats = loading;
+
   return (
     <div className="container mx-auto py-8">
       <div className="grid gap-6">
@@ -124,7 +131,7 @@ export default function CareerPage() {
                   <div>
                     <div className="text-sm font-medium">Home Base</div>
                     <div className="text-sm text-muted-foreground">
-                      {pilot.home_base}
+                      {pilot.homeBase}
                     </div>
                   </div>
                 </div>
@@ -133,7 +140,7 @@ export default function CareerPage() {
                   <div>
                     <div className="text-sm font-medium">Current Location</div>
                     <div className="text-sm text-muted-foreground">
-                      {pilot.current_location}
+                      {pilot.currentLocation}
                     </div>
                   </div>
                 </div>
@@ -142,7 +149,7 @@ export default function CareerPage() {
                   <div>
                     <div className="text-sm font-medium">Preferred Airline</div>
                     <div className="text-sm text-muted-foreground">
-                      {pilot.preferred_airline || "No preference"}
+                      {pilot.preferredAirline || "No preference"}
                     </div>
                   </div>
                 </div>
@@ -162,17 +169,15 @@ export default function CareerPage() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-4">
                 <div>
-                  <div className="text-2xl font-bold">
-                    {stats.total_flights}
-                  </div>
+                  <div className="text-2xl font-bold">{stats.totalFlights}</div>
                   <div className="text-sm text-muted-foreground">
                     Total Flights
                   </div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold">
-                    {Math.floor(stats.total_minutes / 60)}h{" "}
-                    {stats.total_minutes % 60}m
+                    {Math.floor(stats.totalMinutes / 60)}h{" "}
+                    {stats.totalMinutes % 60}m
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Flight Time
@@ -180,7 +185,7 @@ export default function CareerPage() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold">
-                    {stats.airports_visited}
+                    {stats.airportsVisited}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Airports Visited
@@ -188,7 +193,7 @@ export default function CareerPage() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold">
-                    {stats.airlines_flown}
+                    {stats.airlinesFlown}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Airlines Flown
@@ -220,10 +225,10 @@ export default function CareerPage() {
             ) : flights.length > 0 ? (
               flights.map((flight: ScheduledFlightWithRoute) => (
                 <FlightCard
-                  key={flight.scheduled_flight_id}
+                  key={flight.id}
                   flight={flight}
                   onStatusChange={(status) =>
-                    handleStatusChange(flight.scheduled_flight_id, status)
+                    handleStatusChange(flight.id, status)
                   }
                 />
               ))

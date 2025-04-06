@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePilot } from "@/lib/contexts/pilot-context";
+import { createPilot } from "@/lib/hooks/use-pilot";
 
 interface FormData {
   name: string;
@@ -23,25 +24,14 @@ const initialFormData: FormData = {
 export function CreatePilotForm() {
   const { setPilotId } = usePilot();
   const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/career/pilots", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create pilot");
-      }
-
-      const newPilot = await response.json();
+      const newPilot = await createPilot(formData);
       setPilotId(newPilot.id);
       toast.success("Pilot profile created successfully");
     } catch (error) {
@@ -50,6 +40,8 @@ export function CreatePilotForm() {
       } else {
         toast.error("An unexpected error occurred");
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -72,6 +64,7 @@ export function CreatePilotForm() {
               onChange={(e) => handleChange("name", e.target.value)}
               placeholder="Enter pilot name"
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -86,6 +79,7 @@ export function CreatePilotForm() {
               placeholder="e.g. LAX"
               maxLength={3}
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -98,10 +92,13 @@ export function CreatePilotForm() {
               value={formData.preferredAirline}
               onChange={(e) => handleChange("preferredAirline", e.target.value)}
               placeholder="Enter airline name"
+              disabled={isSubmitting}
             />
           </div>
 
-          <Button type="submit">Create Pilot</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Creating..." : "Create Pilot"}
+          </Button>
         </form>
       </CardContent>
     </Card>

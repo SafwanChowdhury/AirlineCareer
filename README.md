@@ -1,4 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Airline Career Application
+
+This application allows users to browse airline routes data and manage pilots and flight schedules in a career mode.
+
+## State Management Improvements
+
+We've implemented several significant improvements to the state management and data fetching patterns in the application:
+
+### 1. Consolidated Contexts
+
+- **Pilot Context (`src/lib/contexts/pilot-context.tsx`)**:
+  - Single source of truth for pilot-related state
+  - Uses SWR for efficient data fetching with automatic caching
+  - Includes loading and error states for better UX
+  - Stores the selected pilot ID in localStorage for persistence
+
+- **Schedule Context (`src/lib/contexts/schedule-context.tsx`)**:
+  - Manages schedule-related state
+  - Provides consistent interface for accessing schedule data
+  - Includes loading and error states for better UX
+
+### 2. Enhanced Custom Hooks
+
+- **Pilot Hooks (`src/lib/hooks/use-pilot.ts`)**:
+  - Consolidated all pilot-related hooks into a single file
+  - Added comprehensive documentation
+  - Standardized error handling and data fetching patterns
+  - Provided utilities for data revalidation after mutations
+
+- **Schedule Hooks (`src/lib/hooks/use-schedule.ts`)**:
+  - Consolidated all schedule-related hooks
+  - Added documentation and consistent interface patterns
+  - Provided mutation functions with automatic cache invalidation
+
+- **Fetch Utility (`src/lib/hooks/use-swr-fetch.ts`)**:
+  - Enhanced with better error handling
+  - Added retry logic for failed requests
+  - Standardized response parsing and typing
+
+### 3. Component Updates
+
+- Updated all components to use the consolidated contexts and hooks
+- Reduced direct API calls in favor of reusable hooks
+- Improved loading and error state handling
+- Enhanced UI feedback during data loading and mutations
+
+### 4. Documentation
+
+- Added detailed documentation for contexts (`src/lib/contexts/README.md`)
+- Added detailed documentation for hooks (`src/lib/hooks/README.md`)
+
+## Benefits
+
+- **Consistency**: Standardized patterns for data fetching and state management
+- **Performance**: Better caching and revalidation strategies
+- **Maintainability**: Clearer separation of concerns and less duplicated code
+- **Developer Experience**: Better documentation and more predictable behavior
+- **UX Improvements**: Consistent loading and error states throughout the app
+
+## Task 3 Completion Status
+
+All files from the original plan have been successfully updated:
+
+### Created Files
+- ✅ `src/lib/contexts/schedule-context.tsx`
+- ✅ `src/lib/hooks/use-schedule.ts`
+- ✅ `src/lib/hooks/README.md`
+- ✅ `src/lib/contexts/README.md`
+
+### Modified Files
+- ✅ `src/lib/contexts/pilot-context.tsx`
+- ✅ `src/lib/hooks/use-pilot.ts`
+- ✅ `src/lib/hooks/use-swr-fetch.ts`
+- ✅ `src/components/career/PilotSelect.tsx`
+- ✅ `src/app/career/page.tsx`
+- ✅ `src/app/career/pilots/[id]/page.tsx`
+- ✅ `src/components/career/CreatePilotForm.tsx`
+- ✅ `src/components/career/FlightCard.tsx`
+- ✅ `src/components/career/ScheduleForm.tsx`
+- ✅ `src/app/career/schedules/[id]/page.tsx`
+- ✅ `src/app/career/schedules/new/page.tsx`
+- ✅ `src/app/layout.tsx`
+
+### Removed Files
+- ✅ `src/lib/contexts/PilotContext.tsx`
+- ✅ `src/lib/hooks/use-pilot-data.ts`
 
 ## Getting Started
 

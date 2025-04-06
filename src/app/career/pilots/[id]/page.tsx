@@ -19,8 +19,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Pencil, Trash2 } from "lucide-react";
-import { PilotProfile } from "@/lib/types";
 import { usePilot } from "@/lib/contexts/pilot-context";
+import { usePilotProfile, updatePilot } from "@/lib/hooks/use-pilot";
 
 interface FormData {
   name: string;
@@ -36,52 +36,46 @@ export default function PilotProfilePage({
 }) {
   const router = useRouter();
   const { pilotId, setPilotId } = usePilot();
-  const [pilot, setPilot] = useState<PilotProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<FormData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
+  // Use SWR hook to fetch pilot data
+  const {
+    data: pilot,
+    error,
+    isLoading,
+    mutate,
+  } = usePilotProfile(parseInt(params.id, 10));
+
+  // Initialize form data when pilot data is loaded
   useEffect(() => {
-    fetch(`/api/career/pilots/${params.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setPilot(data);
-          setFormData({
-            name: data.name,
-            homeBase: data.homeBase,
-            currentLocation: data.currentLocation,
-            preferredAirline: data.preferredAirline || "",
-          });
-        }
-      })
-      .catch((error) => {
-        console.error("Error fetching pilot:", error);
-        toast.error("Failed to load pilot profile");
-      })
-      .finally(() => setIsLoading(false));
-  }, [params.id]);
+    if (pilot) {
+      setFormData({
+        name: pilot.name,
+        homeBase: pilot.homeBase,
+        currentLocation: pilot.currentLocation,
+        preferredAirline: pilot.preferredAirline || "",
+      });
+    }
+  }, [pilot]);
+
+  // Show error toast if API request fails
+  useEffect(() => {
+    if (error) {
+      console.error("Error fetching pilot:", error);
+      toast.error("Failed to load pilot profile");
+    }
+  }, [error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData) return;
 
     try {
-      const response = await fetch(`/api/career/pilots/${params.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const updatedPilot = await updatePilot(parseInt(params.id, 10), formData);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update pilot profile");
-      }
-
-      const updatedPilot = await response.json();
-      setPilot(updatedPilot);
+      // Update local data
+      mutate(updatedPilot);
       setIsEditing(false);
       toast.success("Pilot profile updated successfully");
     } catch (error) {
