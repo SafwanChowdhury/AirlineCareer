@@ -17,18 +17,23 @@ const scheduleRequestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const { pilotId, name, startLocation, durationDays, haulPreferences } = await request.json();
-
-    // Validate required fields
-    if (!pilotId || !name || !startLocation || !durationDays) {
-      throw new ApiError('Missing required fields', 400);
-    }
+    const body = await request.json();
+    const validatedData = scheduleRequestSchema.parse(body);
+    const { pilotId, name, startLocation, durationDays, haulPreferences, preferredAirline } = validatedData;
 
     // Verify pilot exists
     const pilot = await getPilotProfileById(pilotId);
     if (!pilot) {
       throw new ApiError('Pilot not found', 404);
     }
+
+    // Generate flight routes for the schedule
+    const routes = await generateSchedule({
+      startLocation,
+      durationDays,
+      haulPreferences,
+      preferredAirline
+    });
 
     // Create the schedule
     const schedule = await createSchedule({
@@ -39,8 +44,30 @@ export async function POST(request: Request) {
       haulPreferences
     });
 
-    return NextResponse.json(schedule);
+    // Add the generated routes to the schedule
+    for (const route of routes) {
+      await addFlightToSchedule({
+        scheduleId: schedule.id,
+        routeId: route.id,
+        sequenceOrder: route.sequenceOrder,
+        departureTime: route.departureTime,
+        arrivalTime: route.arrivalTime
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        schedule
+      }
+    });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      );
+    }
     if (error instanceof ApiError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }

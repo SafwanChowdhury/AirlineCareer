@@ -1,13 +1,21 @@
 // src/lib/routes-schema.ts
+/**
+ * Schema definitions for the routes database
+ * This file contains all tables related to airlines, airports, and route information.
+ */
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
-// Airlines table for route lookups
+/**
+ * Airlines table for route lookups
+ */
 export const airlines = sqliteTable("airlines", {
   iata: text("iata").primaryKey(),
   name: text("name").notNull()
 });
 
-// Airports table for route lookups
+/**
+ * Airports table for route lookups
+ */
 export const airports = sqliteTable("airports", {
   iata: text("iata").primaryKey(),
   name: text("name").notNull(),
@@ -17,7 +25,9 @@ export const airports = sqliteTable("airports", {
   longitude: text("longitude")
 });
 
-// Route details table
+/**
+ * Route details table - contains information about flight routes
+ */
 export const routeDetails = sqliteTable("route_details", {
   routeId: integer("route_id").primaryKey(),
   departureIata: text("departure_iata").notNull(),
@@ -30,4 +40,4 @@ export const routeDetails = sqliteTable("route_details", {
   durationMin: integer("duration_min").notNull(),
   airlineIata: text("airline_iata").notNull(),
   airlineName: text("airline_name").notNull()
-}); 
+});

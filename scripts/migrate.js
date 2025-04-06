@@ -1,31 +1,82 @@
-// src/lib/migrate.ts
+// scripts/migrate.js
 /**
  * Database migration utility
  * This file contains functions to run migrations on both databases.
- * It uses the raw database connections to execute SQL statements.
+ *
+ * Written in CommonJS for maximum compatibility with direct script execution.
  */
-import { rawRoutesDb, rawCareerDb } from './db';
+import { join } from "path";
+import sqlite3 from "better-sqlite3";
+
+// Initialize database connections directly since we can't import the db.ts module in a JS file
+const routesDb = new sqlite3(join(process.cwd(), "routes.db"), {
+  readonly: false,
+  fileMustExist: false,
+});
+
+const careerDb = new sqlite3(join(process.cwd(), "career.db"), {
+  readonly: false,
+  fileMustExist: false,
+});
+
+// Enable foreign keys
+routesDb.pragma("foreign_keys = ON");
+careerDb.pragma("foreign_keys = ON");
+
 /**
  * Executes a set of SQL migrations on a database
- * @param db The database connection to use
- * @param migrations Array of SQL statements to execute
- * @param name Name of the database for logging
+ * @param {object} db The database connection to use
+ * @param {string[]} migrations Array of SQL statements to execute
+ * @param {string} name Name of the database for logging
  */
-function runMigrations(db: { exec: (sql: string) => void }, migrations: string[], name: string): void {
+function runMigrations(db, migrations, name) {
   console.log(`Running migrations for ${name} database...`);
-  
-  for (const [index, migration] of migrations.entries()) {
+
+  for (let i = 0; i < migrations.length; i++) {
+    const migration = migrations[i];
     try {
-      console.log(`Executing migration ${index + 1}/${migrations.length}`);
+      console.log(`Executing migration ${i + 1}/${migrations.length}`);
       db.exec(migration);
     } catch (error) {
-      console.error(`Migration ${index + 1} failed:`, error);
-      console.error('SQL:', migration.substring(0, 100) + '...');
+      console.error(`Migration ${i + 1} failed:`, error);
+      console.error("SQL:", migration.substring(0, 100) + "...");
+
+      // Don't throw on index creation failures - they might be views
+      if (
+        migration.trim().toUpperCase().startsWith("CREATE INDEX") &&
+        error.message.includes("views may not be indexed")
+      ) {
+        console.warn(
+          "Skipping index creation as the object appears to be a view"
+        );
+        continue;
+      }
+
       throw error;
     }
   }
-  
+
   console.log(`Completed ${migrations.length} migrations for ${name} database`);
+}
+
+/**
+ * Check if a table exists and is not a view
+ * @param {object} db The database connection
+ * @param {string} tableName The table name to check
+ * @returns {boolean} True if it's a table, false if not
+ */
+function isTable(db, tableName) {
+  try {
+    const result = db
+      .prepare(
+        "SELECT type FROM sqlite_master WHERE name = ? AND type = 'table'"
+      )
+      .get(tableName);
+    return !!result;
+  } catch (error) {
+    console.error(`Error checking if ${tableName} is a table:`, error);
+    return false;
+  }
 }
 
 /**
@@ -63,8 +114,11 @@ const routesMigrations = [
     airline_iata TEXT NOT NULL,
     airline_name TEXT NOT NULL
   );`,
+];
 
-  // Create indexes for better query performance on routes
+// Create indexes for better query performance on routes - separate for safer handling
+const routeIndexMigrations = [
+  // Only create these if route_details is a table, not a view
   `CREATE INDEX IF NOT EXISTS idx_route_details_departure ON route_details (departure_iata);`,
   `CREATE INDEX IF NOT EXISTS idx_route_details_arrival ON route_details (arrival_iata);`,
   `CREATE INDEX IF NOT EXISTS idx_route_details_airline ON route_details (airline_iata);`,
@@ -125,8 +179,10 @@ const careerMigrations = [
     status TEXT DEFAULT 'completed',
     FOREIGN KEY (pilot_id) REFERENCES pilots (id)
   );`,
+];
 
-  // Create indexes for better query performance
+// Create indexes for better query performance - separate for safer handling
+const careerIndexMigrations = [
   `CREATE INDEX IF NOT EXISTS idx_schedules_pilot_id ON schedules (pilot_id);`,
   `CREATE INDEX IF NOT EXISTS idx_scheduled_flights_schedule_id ON scheduled_flights (schedule_id);`,
   `CREATE INDEX IF NOT EXISTS idx_flight_history_pilot_id ON flight_history (pilot_id);`,
@@ -135,38 +191,45 @@ const careerMigrations = [
 /**
  * Run migrations on the routes database
  */
-export function migrateRoutesDb(): void {
-  runMigrations(rawRoutesDb, routesMigrations, 'routes');
+function migrateRoutesDb() {
+  // Run main table creation migrations
+  runMigrations(routesDb, routesMigrations, "routes");
+
+  // Only try to create indexes if route_details is a table, not a view
+  if (isTable(routesDb, "route_details")) {
+    console.log("Creating indexes on route_details table...");
+    runMigrations(routesDb, routeIndexMigrations, "routes indexes");
+  } else {
+    console.log(
+      "Skipping index creation for route_details as it is not a table or does not exist"
+    );
+  }
 }
 
 /**
  * Run migrations on the career database
  */
-export function migrateCareerDb(): void {
-  runMigrations(rawCareerDb, careerMigrations, 'career');
+function migrateCareerDb() {
+  // Run main table creation migrations
+  runMigrations(careerDb, careerMigrations, "career");
+
+  // Run index creation migrations
+  runMigrations(careerDb, careerIndexMigrations, "career indexes");
 }
 
 /**
  * Run all migrations on both databases
  */
-export function migrateAll(): void {
+function migrateAll() {
   try {
     migrateRoutesDb();
     migrateCareerDb();
-    console.log('All migrations completed successfully!');
+    console.log("All migrations completed successfully!");
   } catch (error) {
-    console.error('Migration failed:', error);
-    throw error;
-  }
-}
-
-// Check if this file is being run directly
-if (require.main === module) {
-  try {
-    migrateAll();
-    console.log('Migration script completed successfully.');
-  } catch (error) {
-    console.error('Migration failed:', error);
+    console.error("Migration failed:", error);
     process.exit(1);
   }
 }
+
+// Run migrations when this script is executed directly
+migrateAll();
