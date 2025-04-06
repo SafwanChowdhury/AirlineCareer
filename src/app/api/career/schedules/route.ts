@@ -1,93 +1,134 @@
-import { NextResponse } from 'next/server';
-import {
+// src/app/api/career/schedules/route.ts
+import { 
   createSchedule,
   getSchedulesByPilotId,
   getPilotProfileById
 } from '@/lib/career-db';
-import { db } from "@/lib/db";
+import { routesDb } from "@/lib/db";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { airports, schedules } from "@/lib/schema";
-import type { Schedule } from "@/lib/types";
+import { airports } from "@/lib/routes-schema";
+import { 
+  handleApiError, 
+  successResponse,
+  createdResponse,
+  ApiError, 
+  validateId,
+  logApiError 
+} from '@/lib/api-utils';
 
+// Validation schema for schedule inputs
 const scheduleInputSchema = z.object({
-  name: z.string(),
-  startLocation: z.string(),
-  durationDays: z.number(),
+  name: z.string().min(1, "Schedule name is required"),
+  startLocation: z.string().length(3, "Start location must be a 3-letter IATA code"),
+  endLocation: z.string().length(3, "End location must be a 3-letter IATA code").optional(),
+  durationDays: z.number().int().min(1).max(30),
   haulPreferences: z.string(),
-  pilotId: z.string()
+  pilotId: z.string().or(z.number())
 });
 
-type ScheduleInput = z.infer<typeof scheduleInputSchema>;
-
+/**
+ * POST handler for creating a new schedule
+ * Creates a new schedule for a pilot
+ */
 export async function POST(request: Request) {
   try {
+    // Parse request body
     const body = await request.json();
-    const validatedData = scheduleInputSchema.parse(body) as ScheduleInput;
-
-    // Validate airport codes
-    const startAirport = await db.query.airports.findFirst({
-      where: eq(airports.iataCode, validatedData.startLocation)
-    });
-
-    const endAirport = await db.query.airports.findFirst({
-      where: eq(airports.iataCode, validatedData.endLocation)
-    });
-
-    if (!startAirport || !endAirport) {
-      throw new Error("Invalid airport codes provided");
+    
+    // Validate input data against schema
+    const validationResult = scheduleInputSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      throw new ApiError(
+        'Invalid input data', 
+        400, 
+        validationResult.error.errors
+      );
     }
-
-    // Create schedule
-    const [newSchedule] = await db.insert(schedules).values({
+    
+    const validatedData = validationResult.data;
+    const pilotId = validateId(validatedData.pilotId);
+    
+    // Validate airport codes using the routesDb (for airports)
+    const startAirport = await routesDb.select()
+      .from(airports)
+      .where(eq(airports.iata, validatedData.startLocation))
+      .limit(1);
+    
+    if (!startAirport.length) {
+      throw new ApiError(
+        "Invalid start airport code", 
+        400, 
+        { startLocation: validatedData.startLocation }
+      );
+    }
+    
+    // If end location is provided, validate it too
+    if (validatedData.endLocation) {
+      const endAirport = await routesDb.select()
+        .from(airports)
+        .where(eq(airports.iata, validatedData.endLocation))
+        .limit(1);
+      
+      if (!endAirport.length) {
+        throw new ApiError(
+          "Invalid end airport code", 
+          400, 
+          { endLocation: validatedData.endLocation }
+        );
+      }
+    }
+    
+    // Create the schedule using the helper function
+    const newSchedule = await createSchedule({
+      pilotId,
       name: validatedData.name,
       startLocation: validatedData.startLocation,
       durationDays: validatedData.durationDays,
-      haulPreferences: validatedData.haulPreferences,
-      pilotId: validatedData.pilotId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }).returning() as Schedule[];
-
-    return NextResponse.json({ id: newSchedule.id });
+      haulPreferences: validatedData.haulPreferences
+    });
+    
+    // Return the created schedule
+    return createdResponse(newSchedule, {
+      message: `Schedule "${newSchedule.name}" created successfully`
+    });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input data", details: error.errors }, { status: 400 });
-    }
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-    return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
+    logApiError('schedules-api', error, { operation: "POST" });
+    return handleApiError(error);
   }
 }
 
+/**
+ * GET handler for retrieving schedules
+ * Gets all schedules for a specific pilot
+ */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const pilotId = searchParams.get('pilotId');
-
-    if (!pilotId) {
-      return NextResponse.json(
-        { error: 'Pilot ID is required' },
-        { status: 400 }
-      );
+    const pilotIdParam = searchParams.get('pilotId');
+    
+    if (!pilotIdParam) {
+      throw new ApiError('Pilot ID is required', 400);
     }
-
-    const pilot = await getPilotProfileById(parseInt(pilotId, 10));
+    
+    const pilotId = validateId(pilotIdParam);
+    
+    // Check if pilot exists using the helper function
+    const pilot = await getPilotProfileById(pilotId);
+    
     if (!pilot) {
-      return NextResponse.json(
-        { error: 'Pilot not found' },
-        { status: 404 }
-      );
+      throw new ApiError('Pilot not found', 404, { pilotId });
     }
-
-    const schedules = await getSchedulesByPilotId(parseInt(pilotId, 10));
-    return NextResponse.json(schedules);
+    
+    // Get all schedules for the pilot using the helper function
+    const scheduleList = await getSchedulesByPilotId(pilotId);
+    
+    return successResponse(scheduleList, {
+      message: `Retrieved ${scheduleList.length} schedules for pilot: ${pilot.name}`
+    });
   } catch (error) {
-    console.error('Error fetching schedules:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch schedules' },
-      { status: 500 }
-    );
+    logApiError('schedules-api', error, { operation: "GET" });
+    return handleApiError(error);
   }
-} 
+}

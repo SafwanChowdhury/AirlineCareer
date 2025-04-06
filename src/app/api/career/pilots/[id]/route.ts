@@ -1,81 +1,116 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getPilotProfileById, updatePilotLocation } from '@/lib/career-db';
-import { handleApiError, successResponse, validateId, validateParams, ApiError } from '@/lib/api-utils';
-import { db } from '@/lib/db';
-import { pilots } from '@/lib/schema';
+// src/app/api/career/pilots/[id]/route.ts
+import { NextRequest } from 'next/server';
+import { db } from "@/lib/db";
+import { pilots } from "@/lib/schema";
 import { eq } from 'drizzle-orm';
+import { 
+  handleApiError, 
+  successResponse, 
+  noContentResponse,
+  ApiError, 
+  validateId,
+  logApiError 
+} from '@/lib/api-utils';
 
+/**
+ * GET handler for retrieving a specific pilot by ID
+ * Returns the pilot profile if found
+ */
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const pilot = await getPilotProfileById(parseInt(params.id));
+    // Validate and parse ID parameter
+    const pilotId = validateId(params.id);
+    
+    // Query the database for the pilot
+    const pilot = await db.query.pilots.findFirst({
+      where: eq(pilots.id, pilotId),
+    });
+    
+    // Check if pilot exists
     if (!pilot) {
       throw new ApiError('Pilot not found', 404);
     }
-    return NextResponse.json(pilot);
+    
+    // Return the pilot data
+    return successResponse(pilot, {
+      message: `Retrieved pilot: ${pilot.name}`
+    });
   } catch (error) {
-    if (error instanceof ApiError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error('Error fetching pilot:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch pilot' },
-      { status: 500 }
-    );
+    logApiError('pilot-id-api', error, { operation: "GET", id: params.id });
+    return handleApiError(error);
   }
 }
 
+/**
+ * PUT handler for updating a pilot
+ * Updates the pilot with the provided data
+ */
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { currentLocation } = await request.json();
-    if (!currentLocation) {
-      throw new ApiError('Current location is required', 400);
+    // Validate and parse ID parameter
+    const pilotId = validateId(params.id);
+    
+    // Parse request body
+    const data = await request.json();
+    
+    // Update the pilot record with new timestamp
+    const [updatedPilot] = await db
+      .update(pilots)
+      .set({
+        ...data,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(pilots.id, pilotId))
+      .returning();
+    
+    // Check if pilot was found and updated
+    if (!updatedPilot) {
+      throw new ApiError('Pilot not found', 404);
     }
-
-    await updatePilotLocation(parseInt(params.id), currentLocation);
-    return NextResponse.json({ message: 'Pilot location updated successfully' });
+    
+    // Return the updated pilot
+    return successResponse(updatedPilot, {
+      message: `Pilot ${updatedPilot.name} updated successfully`
+    });
   } catch (error) {
-    if (error instanceof ApiError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error('Error updating pilot:', error);
-    return NextResponse.json(
-      { error: 'Failed to update pilot' },
-      { status: 500 }
-    );
+    logApiError('pilot-id-api', error, { operation: "PUT", id: params.id });
+    return handleApiError(error);
   }
 }
 
+/**
+ * DELETE handler for removing a pilot
+ * Deletes the pilot with the specified ID
+ */
 export async function DELETE(
   _request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    // Ensure we await the params
-    const params = await Promise.resolve(context.params);
-    console.log("[pilot-api] Request params for DELETE:", params);
-    
+    // Validate and parse ID parameter
     const pilotId = validateId(params.id);
     
+    // Delete the pilot
     const [deletedPilot] = await db
       .delete(pilots)
       .where(eq(pilots.id, pilotId))
       .returning();
-
+    
+    // Check if pilot was found and deleted
     if (!deletedPilot) {
-      return NextResponse.json(
-        { error: "Pilot not found" },
-        { status: 404 }
-      );
+      throw new ApiError('Pilot not found', 404);
     }
-
-    return NextResponse.json({ success: true });
+    
+    // Return 204 No Content for successful deletion
+    return noContentResponse();
   } catch (error) {
+    logApiError('pilot-id-api', error, { operation: "DELETE", id: params.id });
     return handleApiError(error);
   }
-} 
+}

@@ -9,6 +9,7 @@ import Database from "better-sqlite3";
 import * as path from "path";
 import * as routesSchema from "./routes-schema";
 import * as careerSchema from "./career-schema";
+import { desc, asc } from "drizzle-orm";
 
 /**
  * Initialize the routes database connection
@@ -58,8 +59,76 @@ export async function getMaxRouteDuration(): Promise<number> {
     maxDuration: routesSchema.routeDetails.durationMin
   })
     .from(routesSchema.routeDetails)
-    .orderBy(routesSchema.routeDetails.durationMin)
+    .orderBy(desc(routesSchema.routeDetails.durationMin))
     .limit(1);
   
   return result[0]?.maxDuration || 0;
+}
+
+/**
+ * Get all airports from the database
+ * @returns Array of airport objects
+ */
+export async function getAirports() {
+  try {
+    const airports = await routesDb
+      .select()
+      .from(routesSchema.airports)
+      .orderBy(asc(routesSchema.airports.name));
+    
+    return airports.map(airport => ({
+      iata: airport.iata,
+      name: airport.name,
+      city_name: airport.cityName,
+      country: airport.country
+    }));
+  } catch (error) {
+    console.error("Error fetching airports:", error);
+    return [];
+  }
+}
+
+/**
+ * Get max duration for routes - alias for getMaxRouteDuration
+ * @returns Maximum flight duration in minutes
+ */
+export async function getMaxDuration(): Promise<number> {
+  return getMaxRouteDuration();
+}
+
+/**
+ * Get all unique countries from airports
+ * @returns Array of country objects
+ */
+export async function getCountries() {
+  try {
+    const countries = await routesDb
+      .select({ country: routesSchema.airports.country })
+      .from(routesSchema.airports)
+      .groupBy(routesSchema.airports.country)
+      .orderBy(asc(routesSchema.airports.country));
+    
+    return countries;
+  } catch (error) {
+    console.error("Error fetching countries:", error);
+    return [];
+  }
+}
+
+/**
+ * Get all airlines from the database
+ * @returns Array of airline objects
+ */
+export async function getAirlines() {
+  try {
+    const airlines = await routesDb
+      .select()
+      .from(routesSchema.airlines)
+      .orderBy(asc(routesSchema.airlines.name));
+    
+    return airlines;
+  } catch (error) {
+    console.error("Error fetching airlines:", error);
+    return [];
+  }
 }

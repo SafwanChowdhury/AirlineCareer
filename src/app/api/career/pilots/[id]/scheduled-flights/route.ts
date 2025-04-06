@@ -1,55 +1,53 @@
-import { NextResponse } from "next/server";
+// src/app/api/career/pilots/[id]/scheduled-flights/route.ts
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { schedules, pilots } from "@/lib/schema";
-import { validateId, handleApiError, ApiError } from "@/lib/api-utils";
+import { 
+  handleApiError, 
+  successResponse,
+  ApiError, 
+  validateId,
+  logApiError 
+} from '@/lib/api-utils';
 
+/**
+ * GET handler for retrieving a pilot's scheduled flights
+ * Returns all schedules for a specific pilot
+ */
 export async function GET(
-  request: Request,
+  _request: Request,
   context: { params: { id: string } }
 ) {
   try {
-    // Ensure we await the params
-    const params = await Promise.resolve(context.params);
-    console.log("[scheduled-flights] Request params:", params);
+    // Validate and parse the pilot ID
+    const pilotId = validateId(context.params.id);
     
-    if (!params.id) {
-      throw new ApiError("Missing pilot ID", 400);
-    }
-
-    console.log("[scheduled-flights] Raw ID from params:", params.id);
-    const pilotId = validateId(params.id);
-    
-    console.log("[scheduled-flights] Validated pilotId:", pilotId);
-    
-    // Check if pilot exists first
+    // Check if the pilot exists
     const pilot = await db
       .select()
       .from(pilots)
       .where(eq(pilots.id, pilotId))
       .get();
-
-    console.log("[scheduled-flights] Pilot lookup result:", pilot);
-
+    
     if (!pilot) {
-      console.log("[scheduled-flights] Pilot not found for ID:", pilotId);
-      throw new ApiError("Pilot not found", 404);
+      throw new ApiError("Pilot not found", 404, { pilotId });
     }
-
+    
+    // Get all schedules for the pilot
     const flights = await db
       .select()
       .from(schedules)
       .where(eq(schedules.pilotId, pilotId))
       .orderBy(schedules.createdAt);
-
-    console.log("[scheduled-flights] Found flights:", flights?.length || 0);
-    return NextResponse.json(flights);
+    
+    return successResponse(flights, {
+      message: `Retrieved ${flights.length} scheduled flights for pilot ID: ${pilotId}`
+    });
   } catch (error) {
-    console.error("[scheduled-flights] Error details:", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
+    logApiError('scheduled-flights-api', error, { 
+      operation: "GET", 
+      id: context.params.id 
     });
     return handleApiError(error);
   }
-} 
+}

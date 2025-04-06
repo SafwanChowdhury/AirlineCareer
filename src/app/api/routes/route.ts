@@ -1,24 +1,42 @@
 // src/app/api/routes/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { routesDb } from "@/lib/db";
 import { and, like, or, eq, sql } from "drizzle-orm";
 import { routeDetails } from "@/lib/schema";
+import { 
+  handleApiError, 
+  successResponse, 
+  logApiError, 
+  PaginationInfo 
+} from '@/lib/api-utils';
 
-export async function GET(request: Request) {
+/**
+ * GET handler for routes API
+ * Supports filtering by airline, departure, arrival, and country
+ * Includes pagination
+ */
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const airline = searchParams.get("airline");
     const departure = searchParams.get("departure");
     const arrival = searchParams.get("arrival");
     const country = searchParams.get("country");
+    const maxDuration = searchParams.get("maxDuration");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "10", 10);
     const offset = (page - 1) * limit;
 
+    // Build query conditions based on search parameters
     const conditions = [];
 
     if (airline) {
-      conditions.push(like(routeDetails.airlineName, `%${airline}%`));
+      conditions.push(
+        or(
+          like(routeDetails.airlineName, `%${airline}%`),
+          eq(routeDetails.airlineIata, airline)
+        )
+      );
     }
 
     if (departure) {
@@ -48,9 +66,16 @@ export async function GET(request: Request) {
       );
     }
 
+    if (maxDuration) {
+      const maxDurationValue = parseInt(maxDuration, 10);
+      if (!isNaN(maxDurationValue)) {
+        conditions.push(sql`${routeDetails.durationMin} <= ${maxDurationValue}`);
+      }
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get total count
+    // Get total count for pagination
     const [{ count }] = await routesDb
       .select({ count: sql<number>`count(*)` })
       .from(routeDetails)
@@ -80,20 +105,20 @@ export async function GET(request: Request) {
       duration_min: route.durationMin
     }));
 
-    return NextResponse.json({
-      data: transformedRoutes,
-      pagination: {
-        totalCount: count,
-        currentPage: page,
-        totalPages: Math.ceil(count / limit),
-        limit
-      }
+    // Create pagination info
+    const pagination: PaginationInfo = {
+      totalCount: count,
+      currentPage: page,
+      totalPages: Math.ceil(count / limit),
+      limit
+    };
+
+    return successResponse(transformedRoutes, {
+      pagination,
+      message: `Retrieved ${transformedRoutes.length} routes (page ${page} of ${pagination.totalPages})`
     });
   } catch (error) {
-    console.error("Error fetching routes:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch routes" },
-      { status: 500 }
-    );
+    logApiError('routes-api', error);
+    return handleApiError(error);
   }
 }

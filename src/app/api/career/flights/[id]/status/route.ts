@@ -1,53 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ApiError } from '@/lib/api-utils';
+// src/app/api/career/flights/[id]/status/route.ts
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { scheduledFlights } from '@/lib/career-schema';
+import { scheduledFlights } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
+import { 
+  handleApiError, 
+  successResponse,
+  ApiError, 
+  validateId,
+  validateRequiredFields,
+  logApiError 
+} from '@/lib/api-utils';
 
-interface FlightDetails {
-  scheduled_flight_id: number;
-  schedule_id: number;
-  route_id: number;
-  pilot_id: number;
-  departure_time: string;
-  arrival_time: string;
-  departure_iata: string;
-  arrival_iata: string;
-  airline_iata: string;
-  duration_min: number;
-  status: "scheduled" | "in_progress" | "completed" | "cancelled";
-}
+// Validation schema for status updates
+const statusUpdateSchema = z.object({
+  status: z.enum([
+    'scheduled', 
+    'in_progress', 
+    'completed', 
+    'cancelled'
+  ], {
+    errorMap: () => ({ message: 'Status must be one of: scheduled, in_progress, completed, cancelled' })
+  })
+});
 
+/**
+ * PUT handler for updating a flight's status
+ * Updates the status of a specific scheduled flight
+ */
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { status } = await req.json();
-    if (!status || !['scheduled', 'in_progress', 'completed', 'cancelled'].includes(status)) {
-      throw new ApiError('Invalid status', 400);
+    // Validate and parse flight ID
+    const flightId = validateId(params.id);
+    
+    // Parse request body
+    const body = await req.json();
+    
+    // Validate required fields
+    validateRequiredFields(body, ['status']);
+    
+    // Validate status value
+    const validationResult = statusUpdateSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      throw new ApiError(
+        'Invalid status value', 
+        400, 
+        validationResult.error.errors
+      );
     }
-
-    const result = await db.update(scheduledFlights)
+    
+    const { status } = validationResult.data;
+    
+    // Update the flight status
+    const [updatedFlight] = await db
+      .update(scheduledFlights)
       .set({ status })
-      .where(eq(scheduledFlights.id, parseInt(params.id)))
+      .where(eq(scheduledFlights.id, flightId))
       .returning();
-
-    if (!result.length) {
-      throw new ApiError('Flight not found', 404);
+    
+    // Check if flight was found and updated
+    if (!updatedFlight) {
+      throw new ApiError('Flight not found', 404, { flightId });
     }
-
-    return NextResponse.json(result[0]);
+    
+    // Return the updated flight
+    return successResponse(updatedFlight, {
+      message: `Flight status updated to: ${status}`
+    });
   } catch (error) {
-    if (error instanceof ApiError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error('Error updating flight status:', error);
-    return NextResponse.json(
-      { error: 'Failed to update flight status' },
-      { status: 500 }
-    );
+    logApiError('flight-status-api', error, { 
+      operation: "PUT", 
+      id: params.id 
+    });
+    return handleApiError(error);
   }
 }
 
-export const dynamic = 'force-dynamic'; 
+// Use dynamic rendering for this API route to always fetch the latest data
+export const dynamic = 'force-dynamic';

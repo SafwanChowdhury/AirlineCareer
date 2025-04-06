@@ -1,43 +1,57 @@
-import { NextResponse } from 'next/server';
-import {
+// src/app/api/career/flights/next/route.ts
+import { 
   getNextFlightForPilot,
   getPilotProfileById
 } from '@/lib/career-db';
+import { 
+  handleApiError, 
+  successResponse,
+  ApiError, 
+  validateId,
+  logApiError 
+} from '@/lib/api-utils';
 
+/**
+ * GET handler for retrieving a pilot's next scheduled flight
+ * Returns the next upcoming flight for a specific pilot
+ */
 export async function GET(request: Request) {
   try {
+    // Get the pilot ID from the URL parameters
     const { searchParams } = new URL(request.url);
-    const pilotId = searchParams.get('pilotId');
-
-    if (!pilotId) {
-      return NextResponse.json(
-        { error: 'Pilot ID is required' },
-        { status: 400 }
-      );
+    const pilotIdParam = searchParams.get('pilotId');
+    
+    if (!pilotIdParam) {
+      throw new ApiError('Pilot ID is required', 400);
     }
-
-    const pilot = await getPilotProfileById(parseInt(pilotId, 10));
+    
+    // Validate and parse pilot ID
+    const pilotId = validateId(pilotIdParam);
+    
+    // Check if pilot exists
+    const pilot = await getPilotProfileById(pilotId);
+    
     if (!pilot) {
-      return NextResponse.json(
-        { error: 'Pilot not found' },
-        { status: 404 }
-      );
+      throw new ApiError('Pilot not found', 404, { pilotId });
     }
-
-    const nextFlight = await getNextFlightForPilot(parseInt(pilotId, 10));
+    
+    // Get the next flight for the pilot
+    const nextFlight = await getNextFlightForPilot(pilotId);
+    
+    // Handle case where no flights are scheduled
     if (!nextFlight) {
-      return NextResponse.json(
-        { message: 'No scheduled flights found' },
-        { status: 404 }
-      );
+      return successResponse(null, {
+        message: 'No scheduled flights found for this pilot',
+        status: 404
+      });
     }
-
-    return NextResponse.json(nextFlight);
+    
+    // Return the next flight
+    return successResponse(nextFlight, {
+      message: `Retrieved next scheduled flight for pilot: ${pilot.name}`
+    });
   } catch (error) {
-    console.error('Error fetching next flight:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch next flight' },
-      { status: 500 }
-    );
+    logApiError('next-flight-api', error, { operation: "GET" });
+    return handleApiError(error);
   }
-} 
+}

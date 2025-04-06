@@ -1,31 +1,27 @@
-import { NextResponse } from "next/server";
+// src/app/api/career/pilots/[id]/stats/route.ts
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { schedules } from "@/lib/schema";
 import { sql } from "drizzle-orm";
-import { validateId, handleApiError, ApiError } from "@/lib/api-utils";
+import { 
+  handleApiError, 
+  successResponse,
+  validateId,
+  logApiError 
+} from '@/lib/api-utils';
 
+/**
+ * GET handler for retrieving pilot statistics
+ * Returns flight statistics for a specific pilot
+ */
 export async function GET(
-  request: Request,
+  _request: Request,
   context: { params: { id: string } }
 ) {
   try {
-    // Await the params before accessing them
-    const params = await Promise.resolve(context.params);
-    console.log("[pilot-stats] Request params:", params);
+    // Validate and parse the pilot ID
+    const pilotId = validateId(context.params.id);
     
-    const pilotId = validateId(params.id);
-    console.log("[pilot-stats] Validated pilotId:", pilotId);
-
-    // For now, return mock statistics since we haven't implemented flight tracking yet
-    const mockStats = {
-      totalFlights: 0,
-      totalDistance: 0,
-      totalHours: 0,
-      favoriteAirline: "",
-      mostVisitedAirport: ""
-    };
-
     // Get the pilot's schedules count
     const schedulesCount = await db
       .select({ count: sql<number>`count(*)` })
@@ -33,21 +29,24 @@ export async function GET(
       .where(eq(schedules.pilotId, pilotId))
       .then(result => result[0]?.count || 0);
     
-    console.log("[pilot-stats] Found schedules:", schedulesCount);
-
-    if (schedulesCount > 0) {
-      mockStats.totalFlights = schedulesCount;
-      mockStats.totalDistance = schedulesCount * 1000; // Mock average of 1000km per flight
-      mockStats.totalHours = schedulesCount * 2; // Mock average of 2 hours per flight
-    }
-
-    return NextResponse.json(mockStats);
+    // For now, return mock statistics using the schedules count
+    // This can be expanded later to include real statistics from flight history
+    const stats = {
+      totalFlights: schedulesCount,
+      totalDistance: schedulesCount > 0 ? schedulesCount * 1000 : 0, // Mock average of 1000km per flight
+      totalHours: schedulesCount > 0 ? schedulesCount * 2 : 0, // Mock average of 2 hours per flight
+      favoriteAirline: "",
+      mostVisitedAirport: ""
+    };
+    
+    return successResponse(stats, {
+      message: `Retrieved flight statistics for pilot ID: ${pilotId}`
+    });
   } catch (error) {
-    console.error("[pilot-stats] Error details:", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
+    logApiError('pilot-stats-api', error, { 
+      operation: "GET", 
+      id: context.params.id 
     });
     return handleApiError(error);
   }
-} 
+}
